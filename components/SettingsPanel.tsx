@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Difficulty, AppUpdate } from '../types';
 import { CURRENT_VERSION, checkAppUpdate } from '../services/updateService';
@@ -108,6 +107,33 @@ const SettingsPanel: React.FC = () => {
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" /></svg>
                 </div>
               </div>
+
+              {/* --- PHẦN BỔ SUNG: HƯỚNG DẪN LẤY API KEY --- */}
+              <div className="mt-4 bg-indigo-50 border border-indigo-100 rounded-xl p-4">
+                <h3 className="text-[11px] font-black text-indigo-700 uppercase tracking-widest mb-2 flex items-center gap-2">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    Hướng dẫn lấy Key (Miễn phí)
+                </h3>
+                <ol className="list-decimal list-inside space-y-2 text-[12px] text-slate-600 font-medium ml-1">
+                    <li>
+                    Truy cập <strong>Google AI Studio</strong>:{" "}
+                    <a 
+                        href="https://aistudio.google.com/app/apikey" 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-indigo-600 font-bold hover:underline cursor-pointer"
+                    >
+                        https://aistudio.google.com/app/apikey
+                    </a>
+                    </li>
+                    <li>Đăng nhập bằng tài khoản Google (Gmail).</li>
+                    <li>Nhấn vào nút <span className="px-1.5 py-0.5 bg-slate-200 text-slate-700 rounded text-[10px] font-bold border border-slate-300">Create API key</span>.</li>
+                    <li>Copy chuỗi ký tự (bắt đầu bằng <code>AIza...</code>) và dán vào ô bên trên.</li>
+                    <li>Nhấn <strong>LƯU CẤU HÌNH</strong> để hoàn tất.</li>
+                </ol>
+              </div>
+               {/* --- KẾT THÚC PHẦN BỔ SUNG --- */}
+
             </div>
           </div>
 
