@@ -17,11 +17,13 @@ export const generateExamContent = async (config: ExamConfig): Promise<Question[
   const apiKey = getApiKey();
   if (!apiKey) throw new Error("Chưa cấu hình API Key. Vui lòng vào phần Cài đặt.");
 
-  // Khởi tạo instance AI mới mỗi lần gọi để đảm bảo lấy đúng API Key mới nhất
   const ai = new GoogleGenAI({ apiKey });
   
-  // Sử dụng gemini-3-pro-preview cho các tác vụ phức tạp như biên soạn đề thi
-  const modelName = 'gemini-3-pro-preview'; 
+  /**
+   * SỬA LỖI QUOTA: Chuyển từ 'gemini-3-pro-preview' sang 'gemini-3-flash-preview'
+   * Model Flash có hạn mức miễn phí cao hơn và tốc độ phản hồi nhanh hơn.
+   */
+  const modelName = 'gemini-3-flash-preview'; 
   
   const sectionsPrompt = config.sections.map(s => 
     `- Dạng bài: ${s.type}, Số lượng: ${s.count} câu, Mức độ Bloom: ${s.bloomLevels.join(', ')}, Điểm/câu: ${s.pointsPerQuestion}`
@@ -71,22 +73,25 @@ export const generateExamContent = async (config: ExamConfig): Promise<Question[
       }
     });
 
-    // QUAN TRỌNG: .text là thuộc tính (property), không được sử dụng dấu ngoặc đơn ()
     const textContent = response.text;
-    if (!textContent) {
-      throw new Error("AI không trả về nội dung.");
-    }
+    if (!textContent) throw new Error("AI không trả về nội dung.");
 
     return JSON.parse(textContent) as Question[];
   } catch (error: any) {
-    console.error("Gemini API Detail Error:", error);
+    console.error("Gemini API Error:", error);
     
-    // Xử lý lỗi đặc thụ nếu API Key sai hoặc hết hạn
-    if (error.message?.includes("API_KEY_INVALID") || error.message?.includes("not found")) {
-      throw new Error("API Key không hợp lệ hoặc không có quyền truy cập. Vui lòng kiểm tra lại trong Cài đặt.");
+    // Xử lý lỗi thân thiện với người dùng
+    const errorMsg = error.message || "";
+    
+    if (errorMsg.includes("429") || errorMsg.includes("QUOTA_EXCEEDED") || errorMsg.includes("quota")) {
+      throw new Error("Tài khoản của bạn đã hết lượt dùng AI miễn phí trong hôm nay (hoặc model này bị hạn chế). Vui lòng thử lại sau vài phút hoặc đổi API Key khác.");
     }
     
-    throw new Error("Lỗi AI: " + (error.message || "Không thể kết nối máy chủ AI."));
+    if (errorMsg.includes("API_KEY_INVALID") || errorMsg.includes("not found")) {
+      throw new Error("API Key không hợp lệ. Vui lòng kiểm tra lại trong phần Cài đặt.");
+    }
+    
+    throw new Error("Lỗi AI: " + (errorMsg.length > 100 ? "Yêu cầu bị từ chối bởi máy chủ AI." : errorMsg));
   }
 };
 
@@ -98,7 +103,7 @@ export const regenerateSingleQuestion = async (config: ExamConfig, oldQuestion: 
   if (!apiKey) throw new Error("Chưa cấu hình API Key.");
 
   const ai = new GoogleGenAI({ apiKey });
-  const modelName = 'gemini-3-pro-preview'; 
+  const modelName = 'gemini-3-flash-preview'; 
 
   const prompt = `
     Dựa trên bối cảnh đề thi: ${config.title} (${config.subject}).
@@ -139,7 +144,6 @@ export const regenerateSingleQuestion = async (config: ExamConfig, oldQuestion: 
 
     return JSON.parse(textContent) as Question;
   } catch (error: any) {
-    console.error("Gemini Error during regeneration:", error);
-    throw new Error("Lỗi AI khi đổi câu hỏi: " + error.message);
+    throw new Error("Lỗi AI: " + (error.message?.includes("429") ? "Đã hết lượt dùng AI. Thử lại sau." : "Không thể đổi câu hỏi."));
   }
 };

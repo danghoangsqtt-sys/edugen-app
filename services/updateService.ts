@@ -1,6 +1,6 @@
 import { AppUpdate } from "../types";
 // Import version trực tiếp từ package.json (Yêu cầu bật resolveJsonModule trong tsconfig)
-import pkg from "../../package.json"; 
+import pkg from "../package.json"; 
 
 // 1. Lấy version thực tế từ file cấu hình, không điền tay
 export const CURRENT_VERSION = pkg.version; 
