@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { ExamConfig, Question, QuestionType, BloomLevel } from "../types";
 
@@ -10,43 +11,36 @@ const getApiKey = () => {
 };
 
 /**
- * FIXED: Hàm làm sạch chuỗi JSON trả về từ AI (loại bỏ Markdown code blocks)
- */
-const cleanJsonString = (text: string) => {
-  if (!text) return "[]";
-  // Xóa ```json ở đầu và ``` ở cuối hoặc bất kỳ đâu
-  return text.replace(/^```json/gm, '').replace(/^```/gm, '').trim();
-};
-
-/**
  * Generates the full content for an exam paper based on the provided configuration.
  */
 export const generateExamContent = async (config: ExamConfig): Promise<Question[]> => {
   const apiKey = getApiKey();
   if (!apiKey) throw new Error("Chưa cấu hình API Key. Vui lòng vào phần Cài đặt.");
 
+  // Khởi tạo instance AI mới mỗi lần gọi để đảm bảo lấy đúng API Key mới nhất
   const ai = new GoogleGenAI({ apiKey });
   
-  // FIXED: Sử dụng model ổn định hiện tại thay vì preview cũ
-  const modelName = 'gemini-3-flash-preview'; 
+  // Sử dụng gemini-3-pro-preview cho các tác vụ phức tạp như biên soạn đề thi
+  const modelName = 'gemini-3-pro-preview'; 
   
   const sectionsPrompt = config.sections.map(s => 
     `- Dạng bài: ${s.type}, Số lượng: ${s.count} câu, Mức độ Bloom: ${s.bloomLevels.join(', ')}, Điểm/câu: ${s.pointsPerQuestion}`
   ).join('\n');
 
   const prompt = `
-    Bạn là một chuyên gia khảo thí Việt Nam hàng đầu. Hãy tạo một đề thi JSON dựa trên yêu cầu:
+    Bạn là một chuyên gia khảo thí Việt Nam hàng đầu. Hãy tạo một đề thi JSON dựa trên yêu cầu sau:
     - Tiêu đề: ${config.title}
     - Môn học/Chủ đề: ${config.subject} - ${config.topic}
     - Độ khó tổng thể: ${config.difficulty}
     - Yêu cầu riêng: "${config.customRequirement}"
-    - Ma trận: ${sectionsPrompt}
+    - Ma trận nội dung:
+    ${sectionsPrompt}
     
-    LƯU Ý QUAN TRỌNG:
-    1. Nội dung Tiếng Anh phải chuẩn bản ngữ, nội dung Lý thuyết phải chính xác 100%.
-    2. Format đề thi tuân thủ đúng chuẩn giáo dục Việt Nam (Thông tư 06/2019/TT-BGDĐT).
-    3. Trả về JSON mảng các đối tượng câu hỏi với giải thích chi tiết.
-    4. Chỉ trả về JSON thuần túy, không kèm Markdown.
+    YÊU CẦU QUAN TRỌNG:
+    1. Nội dung Tiếng Anh phải chuẩn bản ngữ (nếu là môn Tiếng Anh), nội dung kiến thức phải chính xác 100%.
+    2. Format đề thi tuân thủ đúng chuẩn giáo dục Việt Nam.
+    3. Luôn trả về một mảng JSON các đối tượng câu hỏi.
+    4. KHÔNG giải thích gì thêm ngoài khối JSON.
   `;
 
   try {
@@ -77,14 +71,22 @@ export const generateExamContent = async (config: ExamConfig): Promise<Question[
       }
     });
 
-    // FIXED: Xử lý text trước khi parse
-    const rawText = response.text() || "[]";
-    const cleanText = cleanJsonString(rawText);
-    return JSON.parse(cleanText) as Question[];
+    // QUAN TRỌNG: .text là thuộc tính (property), không được sử dụng dấu ngoặc đơn ()
+    const textContent = response.text;
+    if (!textContent) {
+      throw new Error("AI không trả về nội dung.");
+    }
 
+    return JSON.parse(textContent) as Question[];
   } catch (error: any) {
-    console.error("Gemini Error:", error);
-    throw new Error("Lỗi AI: " + (error.message || "Không thể kết nối máy chủ AI. Kiểm tra lại API Key."));
+    console.error("Gemini API Detail Error:", error);
+    
+    // Xử lý lỗi đặc thụ nếu API Key sai hoặc hết hạn
+    if (error.message?.includes("API_KEY_INVALID") || error.message?.includes("not found")) {
+      throw new Error("API Key không hợp lệ hoặc không có quyền truy cập. Vui lòng kiểm tra lại trong Cài đặt.");
+    }
+    
+    throw new Error("Lỗi AI: " + (error.message || "Không thể kết nối máy chủ AI."));
   }
 };
 
@@ -96,15 +98,15 @@ export const regenerateSingleQuestion = async (config: ExamConfig, oldQuestion: 
   if (!apiKey) throw new Error("Chưa cấu hình API Key.");
 
   const ai = new GoogleGenAI({ apiKey });
-  // FIXED: Sử dụng model ổn định
-  const modelName = 'gemini-3-flash-preview'; 
+  const modelName = 'gemini-3-pro-preview'; 
 
   const prompt = `
-    Dựa trên cấu trúc đề thi: ${config.title} (${config.subject}).
-    Tạo lại 01 câu hỏi mới thay thế cho câu cũ (cùng dạng và độ khó):
-    - Dạng: ${oldQuestion.type}
-    - Mức độ: ${oldQuestion.bloomLevel}
-    - Cũ: ${oldQuestion.content}
+    Dựa trên bối cảnh đề thi: ${config.title} (${config.subject}).
+    Hãy tạo lại 01 câu hỏi mới thay thế cho câu cũ, giữ nguyên định dạng và mức độ khó:
+    - Dạng bài: ${oldQuestion.type}
+    - Mức độ Bloom: ${oldQuestion.bloomLevel}
+    - Nội dung cũ: "${oldQuestion.content}"
+    Trả về duy nhất 1 đối tượng JSON.
   `;
 
   try {
@@ -132,13 +134,12 @@ export const regenerateSingleQuestion = async (config: ExamConfig, oldQuestion: 
       }
     });
 
-    // FIXED: Xử lý text trước khi parse
-    const rawText = response.text() || "{}";
-    const cleanText = cleanJsonString(rawText);
-    return JSON.parse(cleanText) as Question;
+    const textContent = response.text;
+    if (!textContent) throw new Error("AI không trả về nội dung.");
 
+    return JSON.parse(textContent) as Question;
   } catch (error: any) {
     console.error("Gemini Error during regeneration:", error);
-    throw new Error("Lỗi AI khi đổi câu hỏi.");
+    throw new Error("Lỗi AI khi đổi câu hỏi: " + error.message);
   }
 };
