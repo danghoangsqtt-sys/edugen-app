@@ -1,0 +1,176 @@
+
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>EduGen Studio Professional</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Times+New+Roman&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --accent-primary: #4f46e5;
+            --bg-main: #f8fafc;
+            --sidebar-width: 320px;
+            --rail-width: 80px;
+        }
+        
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--bg-main);
+            color: #1e293b;
+            overflow: hidden;
+            height: 100vh;
+            touch-action: manipulation;
+        }
+
+        .desktop-window {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .title-bar {
+            height: 40px;
+            background: #fff;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            z-index: 100;
+        }
+
+        .app-body {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+            flex-direction: row;
+        }
+
+        /* Responsive Navigation */
+        @media (max-width: 768px) {
+            .app-body { flex-direction: column-reverse; }
+            .nav-rail {
+                width: 100% !important;
+                height: 64px !important;
+                flex-direction: row !important;
+                border-right: none !important;
+                border-top: 1px solid #e2e8f0;
+                padding: 0 20px !important;
+                justify-content: space-around !important;
+            }
+            .rail-item { width: 44px !important; height: 44px !important; }
+            .sidebar-panel {
+                width: 100% !important;
+                height: 40vh;
+                border-right: none !important;
+                border-bottom: 1px solid #e2e8f0;
+            }
+            .title-bar { display: none; }
+        }
+
+        .nav-rail {
+            width: var(--rail-width);
+            background: #fff;
+            border-right: 1px solid #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 24px 0;
+            gap: 12px;
+            transition: all 0.3s ease;
+        }
+
+        .rail-item {
+            width: 52px;
+            height: 52px;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            color: #64748b;
+        }
+
+        .rail-item:hover {
+            background: #f1f5f9;
+            color: var(--accent-primary);
+        }
+
+        .rail-item.active {
+            background: var(--accent-primary);
+            color: white;
+            box-shadow: 0 8px 16px rgba(79, 70, 229, 0.2);
+        }
+
+        .sidebar-panel {
+            width: var(--sidebar-width);
+            background: #fff;
+            border-right: 1px solid #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            transition: width 0.3s ease;
+        }
+
+        .main-workspace {
+            flex: 1;
+            background: var(--bg-main);
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        /* A4 Scaling for Mobile */
+        .a4-wrapper {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        @media (max-width: 850px) {
+            .a4-container {
+                transform: scale(calc(100vw / 900));
+                transform-origin: top center;
+                margin-bottom: calc(-100% + 100vw);
+            }
+        }
+
+        .font-times {
+            font-family: 'Times New Roman', serif;
+        }
+
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-content { animation: slideIn 0.3s ease-out; }
+
+        @media print {
+            .no-print { display: none !important; }
+            .main-workspace { background: white !important; overflow: visible !important; }
+            .a4-container { transform: none !important; box-shadow: none !important; margin: 0 !important; width: 100% !important; border: none !important; }
+        }
+    </style>
+<script type="importmap">
+{
+  "imports": {
+    "@google/genai": "https://esm.sh/@google/genai@^1.35.0",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body>
+    <div id="root"></div>
+<script type="module" src="/index.tsx"></script>
+</body>
+</html>

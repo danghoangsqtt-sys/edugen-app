@@ -1,0 +1,44 @@
+
+{
+  "name": "edugen-studio-pro",
+  "version": "1.0.0",
+  "description": "Hệ thống biên soạn đề thi thông minh AI",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "package": "electron-builder"
+  },
+  "keywords": [],
+  "author": "EduGen Team",
+  "license": "ISC",
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3",
+    "typescript": "^5.2.2",
+    "vite": "^5.2.0"
+  },
+  "dependencies": {
+    "@google/genai": "^1.35.0",
+    "lucide-react": "^0.378.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "build": {
+    "appId": "com.edugen.studiopro",
+    "productName": "EduGen Studio Professional",
+    "directories": {
+      "output": "dist_electron"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "public/icon.ico"
+    },
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.education"
+    }
+  }
+}
