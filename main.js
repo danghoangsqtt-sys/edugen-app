@@ -1,5 +1,5 @@
 
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow } = require('electron');
 const path = require('path');
 
 function createWindow() {
@@ -8,18 +8,23 @@ function createWindow() {
     height: 850,
     minWidth: 1000,
     minHeight: 700,
-    frame: false, // Sử dụng Custom Titlebar để đẹp hơn
+    frame: false,
     webPreferences: {
       nodeIntegration: true,
       contextIsolation: false
     }
   });
 
-  // Trong môi trường development, load từ localhost hoặc file
-  win.loadFile('index.html');
-  
-  // Mở DevTools nếu cần
-  // win.webContents.openDevTools();
+  // Kiểm tra xem ứng dụng đang chạy ở chế độ dev hay đã build
+  const isDev = !app.isPackaged;
+
+  if (isDev) {
+    // Trong môi trường dev, load từ server của Vite
+    win.loadURL('http://localhost:5173');
+  } else {
+    // Sau khi build, load file từ thư mục dist
+    win.loadFile(path.join(__dirname, 'dist/index.html'));
+  }
 }
 
 app.whenReady().then(createWindow);

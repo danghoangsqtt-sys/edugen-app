@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { ExamConfig, Question, QuestionType, BloomLevel } from "../types";
 
@@ -11,6 +10,15 @@ const getApiKey = () => {
 };
 
 /**
+ * FIXED: Hàm làm sạch chuỗi JSON trả về từ AI (loại bỏ Markdown code blocks)
+ */
+const cleanJsonString = (text: string) => {
+  if (!text) return "[]";
+  // Xóa ```json ở đầu và ``` ở cuối hoặc bất kỳ đâu
+  return text.replace(/^```json/gm, '').replace(/^```/gm, '').trim();
+};
+
+/**
  * Generates the full content for an exam paper based on the provided configuration.
  */
 export const generateExamContent = async (config: ExamConfig): Promise<Question[]> => {
@@ -18,6 +26,8 @@ export const generateExamContent = async (config: ExamConfig): Promise<Question[
   if (!apiKey) throw new Error("Chưa cấu hình API Key. Vui lòng vào phần Cài đặt.");
 
   const ai = new GoogleGenAI({ apiKey });
+  
+  // FIXED: Sử dụng model ổn định hiện tại thay vì preview cũ
   const modelName = 'gemini-3-flash-preview'; 
   
   const sectionsPrompt = config.sections.map(s => 
@@ -36,6 +46,7 @@ export const generateExamContent = async (config: ExamConfig): Promise<Question[
     1. Nội dung Tiếng Anh phải chuẩn bản ngữ, nội dung Lý thuyết phải chính xác 100%.
     2. Format đề thi tuân thủ đúng chuẩn giáo dục Việt Nam (Thông tư 06/2019/TT-BGDĐT).
     3. Trả về JSON mảng các đối tượng câu hỏi với giải thích chi tiết.
+    4. Chỉ trả về JSON thuần túy, không kèm Markdown.
   `;
 
   try {
@@ -66,7 +77,11 @@ export const generateExamContent = async (config: ExamConfig): Promise<Question[
       }
     });
 
-    return JSON.parse(response.text || "[]") as Question[];
+    // FIXED: Xử lý text trước khi parse
+    const rawText = response.text() || "[]";
+    const cleanText = cleanJsonString(rawText);
+    return JSON.parse(cleanText) as Question[];
+
   } catch (error: any) {
     console.error("Gemini Error:", error);
     throw new Error("Lỗi AI: " + (error.message || "Không thể kết nối máy chủ AI. Kiểm tra lại API Key."));
@@ -81,7 +96,8 @@ export const regenerateSingleQuestion = async (config: ExamConfig, oldQuestion: 
   if (!apiKey) throw new Error("Chưa cấu hình API Key.");
 
   const ai = new GoogleGenAI({ apiKey });
-  const modelName = 'gemini-3-pro-preview'; 
+  // FIXED: Sử dụng model ổn định
+  const modelName = 'gemini-3-flash-preview'; 
 
   const prompt = `
     Dựa trên cấu trúc đề thi: ${config.title} (${config.subject}).
@@ -116,7 +132,11 @@ export const regenerateSingleQuestion = async (config: ExamConfig, oldQuestion: 
       }
     });
 
-    return JSON.parse(response.text || "{}") as Question;
+    // FIXED: Xử lý text trước khi parse
+    const rawText = response.text() || "{}";
+    const cleanText = cleanJsonString(rawText);
+    return JSON.parse(cleanText) as Question;
+
   } catch (error: any) {
     console.error("Gemini Error during regeneration:", error);
     throw new Error("Lỗi AI khi đổi câu hỏi.");
