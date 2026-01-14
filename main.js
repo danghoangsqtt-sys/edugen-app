@@ -1,16 +1,15 @@
-
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
-const fs = require('fs');
 
 function createWindow() {
   const isDev = !app.isPackaged;
   
-  // Xác định đường dẫn thư mục tài nguyên
-  // Khi đóng gói, __dirname thường là thư mục gốc của asar
+  // SỬA LỖI ICON:
+  // Vite copy file trong 'public/' ra thẳng 'dist/'. 
+  // File gốc là 'icon.ico', nên trong dist cũng là 'icon.ico'.
   const iconPath = isDev 
-    ? path.join(__dirname, 'public', 'icon.png') 
-    : path.join(__dirname, 'dist', 'icon.png');
+    ? path.join(__dirname, 'public', 'icon.ico') 
+    : path.join(__dirname, 'dist', 'icon.ico');
 
   const win = new BrowserWindow({
     width: 1280,
@@ -18,30 +17,25 @@ function createWindow() {
     minWidth: 1000,
     minHeight: 700,
     frame: false,
-    icon: iconPath, // Icon cho Taskbar
+    icon: iconPath, // Set icon cho cửa sổ
     webPreferences: {
       nodeIntegration: true,
-      contextIsolation: false,
-      devTools: true // Bật để debug nếu cần
+      contextIsolation: false, // Lưu ý: Về lâu dài nên set true và dùng preload script để bảo mật hơn
+      devTools: isDev // Chỉ bật DevTools khi dev
     }
   });
 
+  // SỬA LỖI LOAD FILE TRẮNG TRANG:
   if (isDev) {
     win.loadURL('http://localhost:5173');
+    win.webContents.openDevTools(); // Mở devtool khi code
   } else {
-    // Đường dẫn chính xác tới file index.html trong thư mục dist
-    const indexPath = path.join(__dirname, 'dist', 'index.html');
-    
-    if (fs.existsSync(indexPath)) {
-      win.loadFile(indexPath).catch(err => {
-        console.error("Lỗi khi load tệp index:", err);
-      });
-    } else {
-      // Nếu không tìm thấy tệp dist/index.html, thử load trực tiếp (fallback)
-      win.loadFile('dist/index.html').catch(() => {
-        console.error("Không thể tìm thấy tệp index.html ở bất kỳ đâu.");
-      });
-    }
+    // Load file từ thư mục dist đã build
+    win.loadFile(path.join(__dirname, 'dist', 'index.html')).catch(err => {
+        console.error("Lỗi load app:", err);
+    });
+    // Tắt menu mặc định của trình duyệt trong bản build
+    win.setMenu(null);
   }
 
   // Window control IPC
@@ -51,15 +45,8 @@ function createWindow() {
     else win.maximize();
   });
   ipcMain.on('window-close', () => win.close());
-  
-  // Xử lý lỗi khi nội dung không hiển thị (trắng trang)
-  win.webContents.on('did-fail-load', () => {
-    console.error("Giao diện không thể tải được.");
-    if (!isDev) win.loadFile(path.join(__dirname, 'dist', 'index.html'));
-  });
 }
 
-// Giảm thiểu lỗi crash khi khởi động
 app.whenReady().then(createWindow);
 
 app.on('window-all-closed', () => {

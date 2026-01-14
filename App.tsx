@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { ExamConfig, ExamPaper as ExamPaperType, Question } from './types';
 import { generateExamContent } from './services/geminiService';
@@ -10,10 +9,11 @@ import GameCenter from './components/GameCenter';
 import SettingsPanel from './components/SettingsPanel';
 import LibraryPanel from './components/LibraryPanel';
 
-// Electron ipcRenderer (only available in Electron context)
+// Electron ipcRenderer (xử lý an toàn để tránh lỗi 'fs' khi build bằng Vite)
 const electron = (window as any).require ? (window as any).require('electron') : null;
 
 const App: React.FC = () => {
+  // Giữ nguyên logic điều hướng bằng state activeTab
   const [activeTab, setActiveTab] = useState<'create' | 'library' | 'game' | 'settings'>('create');
   const [examList, setExamList] = useState<ExamPaperType[]>([]);
   const [currentExamIndex, setCurrentExamIndex] = useState<number>(-1);
@@ -32,14 +32,20 @@ const App: React.FC = () => {
       try {
         const parsed = JSON.parse(savedExams);
         setExamList(parsed);
-      } catch (e) {}
+      } catch (e) {
+        console.error("Lỗi đọc dữ liệu:", e);
+      }
     }
 
     // Auto check update
     const checkUpdates = async () => {
-      const update = await checkAppUpdate();
-      if (update.hasUpdate) {
-        setNewUpdateAvailable(true);
+      try {
+        const update = await checkAppUpdate();
+        if (update.hasUpdate) {
+          setNewUpdateAvailable(true);
+        }
+      } catch (err) {
+        // Bỏ qua lỗi nếu offline
       }
     };
     checkUpdates();
@@ -227,4 +233,5 @@ const RailItem: React.FC<{ icon: string; active: boolean; onClick: () => void; l
     </div>
   );
 };
+
 export default App;
