@@ -10,6 +10,9 @@ import GameCenter from './components/GameCenter';
 import SettingsPanel from './components/SettingsPanel';
 import LibraryPanel from './components/LibraryPanel';
 
+// Electron ipcRenderer (only available in Electron context)
+const electron = (window as any).require ? (window as any).require('electron') : null;
+
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'create' | 'library' | 'game' | 'settings'>('create');
   const [examList, setExamList] = useState<ExamPaperType[]>([]);
@@ -41,6 +44,10 @@ const App: React.FC = () => {
     };
     checkUpdates();
   }, []);
+
+  const handleMinimize = () => electron?.ipcRenderer.send('window-minimize');
+  const handleMaximize = () => electron?.ipcRenderer.send('window-maximize');
+  const handleClose = () => electron?.ipcRenderer.send('window-close');
 
   const handleGenerate = async (config: ExamConfig) => {
     setIsGenerating(true);
@@ -94,15 +101,26 @@ const App: React.FC = () => {
   return (
     <div className="desktop-window">
       <div className="title-bar no-print">
-        <div className="flex items-center gap-2">
-          <div className="w-2.5 h-2.5 rounded-full bg-rose-400"></div>
-          <div className="w-2.5 h-2.5 rounded-full bg-amber-400"></div>
-          <div className="w-2.5 h-2.5 rounded-full bg-emerald-400"></div>
+        <div className="flex items-center gap-3">
+           <div className="w-5 h-5 bg-indigo-600 rounded flex items-center justify-center">
+             <span className="text-[10px] text-white font-black">E</span>
+           </div>
+           <span className="text-[10px] font-black text-slate-700 uppercase tracking-[2px]">EduGen Studio</span>
         </div>
-        <div className="flex-1 text-center">
-          <span className="text-[9px] font-black text-slate-400 uppercase tracking-[3px]">EduGen <span className="text-indigo-600">Studio</span></span>
+        
+        <div className="flex-1"></div>
+
+        <div className="window-controls">
+          <button onClick={handleMinimize} className="control-btn">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M20 12H4" /></svg>
+          </button>
+          <button onClick={handleMaximize} className="control-btn">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
+          </button>
+          <button onClick={handleClose} className="control-btn close-btn">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
         </div>
-        <div className="text-[7px] font-black text-slate-300 uppercase tracking-widest hidden md:block">DHsystem Ecosystem 2026</div>
       </div>
 
       <div className="app-body">

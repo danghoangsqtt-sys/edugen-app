@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="vi">
 <head>
@@ -35,8 +36,36 @@
             border-bottom: 1px solid #e2e8f0;
             display: flex;
             align-items: center;
-            padding: 0 16px;
+            padding: 0 0 0 16px;
             z-index: 100;
+            -webkit-app-region: drag; /* Cho phép kéo cửa sổ */
+            user-select: none;
+        }
+
+        .window-controls {
+            display: flex;
+            height: 100%;
+            -webkit-app-region: no-drag; /* Vô hiệu hóa kéo tại khu vực nút */
+        }
+
+        .control-btn {
+            width: 46px;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            color: #64748b;
+            cursor: pointer;
+        }
+
+        .control-btn:hover {
+            background-color: #f1f5f9;
+        }
+
+        .control-btn.close-btn:hover {
+            background-color: #ef4444;
+            color: white;
         }
 
         .app-body {
@@ -121,7 +150,6 @@
             position: relative;
         }
 
-        /* A4 Scaling for Mobile */
         .a4-wrapper {
             width: 100%;
             display: flex;
@@ -156,10 +184,20 @@
             .a4-container { transform: none !important; box-shadow: none !important; margin: 0 !important; width: 100% !important; border: none !important; }
         }
     </style>
+<script type="importmap">
+{
+  "imports": {
+    "@google/genai": "https://esm.sh/@google/genai@^1.35.0",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
+    "vite": "https://esm.sh/vite@^7.3.1"
+  }
+}
+</script>
 </head>
 <body>
     <div id="root"></div>
-    <!-- FIXED: Sử dụng đường dẫn tương đối để Electron load được file -->
-    <script type="module" src="./index.tsx"></script>
 </body>
 </html>
