@@ -1,31 +1,41 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { Question, LeaderboardEntry } from '../types';
+import React, { useState, useEffect } from 'react';
+import { Question, LeaderboardEntry, ExamPaper } from '../types';
+import QuizMode from './QuizMode';
+import ScrambleMode from './ScrambleMode';
+import BlitzMode from './BlitzMode';
+import SurvivalMode from './SurvivalMode';
 
 type GameMode = 'quiz' | 'scramble' | 'blitz' | 'survival';
 
 interface GameCenterProps {
-  questions: Question[];
-  examTitle: string;
+  initialQuestions: Question[];
+  initialExamTitle: string;
+  examList: ExamPaper[];
 }
 
-const GameCenter: React.FC<GameCenterProps> = ({ questions, examTitle }) => {
-  const [gameState, setGameState] = useState<'lobby' | 'playing' | 'result'>('lobby');
+const GameCenter: React.FC<GameCenterProps> = ({ initialQuestions, initialExamTitle, examList }) => {
+  const [activeQuestions, setActiveQuestions] = useState<Question[]>(initialQuestions);
+  const [activeTitle, setActiveTitle] = useState(initialExamTitle);
+  const [gameState, setGameState] = useState<'selection' | 'lobby' | 'playing' | 'result'>('selection');
   const [selectedMode, setSelectedMode] = useState<GameMode>('quiz');
   const [playerName, setPlayerName] = useState('');
-  
-  const [gameQuestions, setGameQuestions] = useState<any[]>([]);
-  const [currentIdx, setCurrentIdx] = useState(0);
-  const [score, setScore] = useState(0);
-  const [streak, setStreak] = useState(0);
-  const [lives, setLives] = useState(3);
-  const [timeLeft, setTimeLeft] = useState(15);
-  const [feedback, setFeedback] = useState<{correct: boolean, msg: string} | null>(null);
+  const [lastGameResult, setLastGameResult] = useState<{score: number, streak: number} | null>(null);
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
+  const [nameError, setNameError] = useState(false);
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
 
   useEffect(() => {
-    const saved = localStorage.getItem('edugen_leaderboard');
-    if (saved) setLeaderboard(JSON.parse(saved));
+    if (initialQuestions?.length > 0) {
+      setActiveQuestions(initialQuestions);
+      setActiveTitle(initialExamTitle);
+      setGameState('lobby');
+    }
+  }, [initialQuestions, initialExamTitle]);
+
+  useEffect(() => {
+    const savedLB = localStorage.getItem('edugen_leaderboard');
+    if (savedLB) setLeaderboard(JSON.parse(savedLB));
     const savedSettings = localStorage.getItem('edugen_settings');
     if (savedSettings) {
       try {
@@ -35,88 +45,111 @@ const GameCenter: React.FC<GameCenterProps> = ({ questions, examTitle }) => {
     }
   }, []);
 
-  const prepareGameData = (mode: GameMode) => {
-    if (questions.length === 0) return [];
-    return questions.map(q => {
-      if (mode === 'scramble') {
-        const text = q.correctAnswer;
-        const scrambled = text.split('').sort(() => Math.random() - 0.5).join('');
-        return { ...q, scrambled, hint: q.content };
-      }
-      return q;
-    }).sort(() => Math.random() - 0.5);
+  const handleFinish = (score: number, streak: number) => {
+    setLastGameResult({ score: Math.round(score), streak });
+    const entry: LeaderboardEntry = { playerName, score: Math.round(score), time: new Date().toLocaleTimeString(), topic: activeTitle };
+    const newLB = [entry, ...leaderboard].sort((a, b) => b.score - a.score).slice(0, 10);
+    setLeaderboard(newLB);
+    localStorage.setItem('edugen_leaderboard', JSON.stringify(newLB));
+    setGameState('result');
   };
 
-  const startGame = (mode: GameMode) => {
-    if (!playerName) { alert("Vui lòng nhập tên chiến binh!"); return; }
-    if (questions.length === 0) { alert("Hãy chọn một đề thi trước!"); return; }
+  const triggerExitConfirm = () => {
+    setShowExitConfirm(true);
+  };
+
+  const confirmExit = () => {
+    setShowExitConfirm(false);
+    setGameState('lobby');
+  };
+
+  const startWithMode = (mode: GameMode) => {
+    if (!playerName.trim()) {
+      setNameError(true);
+      setTimeout(() => setNameError(false), 2000);
+      return;
+    }
     setSelectedMode(mode);
-    setGameQuestions(prepareGameData(mode));
-    setCurrentIdx(0);
-    setScore(0);
-    setStreak(0);
-    setLives(mode === 'survival' ? 3 : 99);
-    setTimeLeft(mode === 'blitz' ? 7 : 15);
     setGameState('playing');
   };
 
-  const handleAnswer = (answer: string) => {
-    if (gameState !== 'playing') return;
-    const q = gameQuestions[currentIdx];
-    let isCorrect = answer.toLowerCase().trim() === q.correctAnswer.toLowerCase().trim();
-    if (isCorrect) {
-      setScore(prev => prev + 100 + timeLeft * 10 + streak * 20);
-      setStreak(prev => prev + 1);
-      setFeedback({ correct: true, msg: "Quá đỉnh!" });
-    } else {
-      setStreak(0);
-      if (selectedMode === 'survival') setLives(prev => prev - 1);
-      setFeedback({ correct: false, msg: `Sai rồi! ${q.correctAnswer}` });
-    }
-    setTimeout(() => {
-      setFeedback(null);
-      if ((selectedMode !== 'survival' || (lives > (isCorrect ? 0 : 1))) && currentIdx < gameQuestions.length - 1) {
-        setCurrentIdx(prev => prev + 1);
-        setTimeLeft(selectedMode === 'blitz' ? 7 : 15);
-      } else {
-        const entry: LeaderboardEntry = { playerName, score, time: new Date().toLocaleTimeString(), topic: examTitle };
-        const newLB = [entry, ...leaderboard].sort((a, b) => b.score - a.score).slice(0, 5);
-        setLeaderboard(newLB);
-        localStorage.setItem('edugen_leaderboard', JSON.stringify(newLB));
-        setGameState('result');
-      }
-    }, isCorrect ? 600 : 1500);
-  };
+  if (gameState === 'selection') {
+    return (
+      <div className="h-full bg-slate-50 flex items-center justify-center p-4">
+        <div className="w-full max-w-xl bg-white rounded-[32px] shadow-xl p-6 border border-slate-100 animate-in fade-in zoom-in duration-300">
+          <div className="text-center mb-6">
+            <h2 className="text-lg font-black text-slate-800 uppercase tracking-widest">CHỌN NỘI DUNG THI ĐẤU</h2>
+            <div className="h-1 w-10 bg-indigo-600 mx-auto mt-2 rounded-full"></div>
+          </div>
+          <div className="grid grid-cols-1 gap-2 max-h-[350px] overflow-y-auto pr-1 custom-scrollbar">
+            {examList.length === 0 ? (
+              <div className="flex flex-col items-center py-10 opacity-30">
+                <svg className="w-12 h-12 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+                <p className="text-[10px] font-black uppercase tracking-widest">Thư viện chưa có đề thi</p>
+              </div>
+            ) : (
+              examList.map(exam => (
+                <button key={exam.id} onClick={() => { setActiveQuestions(exam.questions); setActiveTitle(exam.config.title); setGameState('lobby'); }} className="flex items-center gap-3 p-3.5 bg-slate-50 border border-slate-100 rounded-2xl hover:bg-indigo-50 hover:border-indigo-200 transition-all text-left group">
+                  <div className="w-9 h-9 bg-white rounded-xl flex items-center justify-center text-indigo-600 shadow-sm group-hover:bg-indigo-600 group-hover:text-white transition-all">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                  </div>
+                  <div className="flex-1 overflow-hidden">
+                    <h4 className="font-bold text-slate-800 truncate text-[11px]">{exam.config.title}</h4>
+                    <p className="text-[8px] font-black text-indigo-400 uppercase tracking-widest">{exam.config.subject}</p>
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (gameState === 'lobby') {
     return (
-      <div className="h-full bg-slate-50 flex flex-col items-center py-10 px-4 overflow-y-auto">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl md:text-5xl font-black text-slate-800 tracking-tight uppercase italic">Arena <span className="text-indigo-600">Studio</span></h1>
-          <p className="text-[8px] font-black text-slate-400 uppercase tracking-[4px]">Vào trận chiến kiến thức</p>
-        </div>
-        <div className="w-full max-w-4xl grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="md:col-span-2 bg-white p-6 md:p-10 rounded-[32px] border border-slate-200 shadow-xl space-y-6">
-            <div className="space-y-2">
-              <label className="text-[9px] font-black text-indigo-500 uppercase tracking-widest ml-1">Tên Chiến Binh</label>
-              <input className="w-full bg-slate-50 border p-4 rounded-2xl text-xl font-black text-slate-800 outline-none focus:ring-4 focus:ring-indigo-50 shadow-inner" value={playerName} onChange={e => setPlayerName(e.target.value)} placeholder="Tên bạn..." />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <ModeBtn title="Quiz" icon="🏆" mode="quiz" onClick={startGame} color="bg-indigo-600" />
-              <ModeBtn title="Survival" icon="💀" mode="survival" onClick={startGame} color="bg-rose-600" />
-              <ModeBtn title="Blitz" icon="⚡" mode="blitz" onClick={startGame} color="bg-amber-500" />
-              <ModeBtn title="Scramble" icon="🧩" mode="scramble" onClick={startGame} color="bg-emerald-600" />
+      <div className="h-full bg-slate-50 flex items-center justify-center p-4">
+        <div className="w-full max-w-[550px] bg-white rounded-[32px] shadow-2xl p-8 border border-slate-100 relative overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50 rounded-full -mr-16 -mt-16 z-0 opacity-50"></div>
+          <button onClick={() => setGameState('selection')} className="relative z-10 p-2 hover:bg-slate-100 rounded-xl text-slate-400 transition-colors mb-4 flex items-center gap-2 group">
+            <svg className="w-5 h-5 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7" /></svg>
+            <span className="text-[9px] font-black uppercase tracking-widest">Đổi đề</span>
+          </button>
+          
+          <div className="relative z-10 text-center mb-8">
+            <h3 className="text-[10px] font-black text-indigo-600 uppercase tracking-[4px] mb-3">Thông tin thí sinh</h3>
+            <div className={`max-w-xs mx-auto transition-all ${nameError ? 'animate-bounce' : ''}`}>
+              <input 
+                type="text" 
+                className={`w-full bg-slate-50 border-2 p-3.5 rounded-2xl text-lg font-black text-center text-slate-700 outline-none transition-all shadow-inner ${nameError ? 'border-rose-500 bg-rose-50 placeholder-rose-300' : 'border-slate-100 focus:border-indigo-500 focus:bg-white'}`} 
+                value={playerName} 
+                onChange={e => { setPlayerName(e.target.value); if(nameError) setNameError(false); }} 
+                placeholder={nameError ? "Hãy nhập tên!" : "Tên của bạn..."} 
+                autoFocus
+              />
+              {nameError && <p className="text-rose-500 text-[8px] font-black uppercase mt-2 animate-pulse">Vui lòng nhập danh tính trước khi xuất trận!</p>}
             </div>
           </div>
-          <div className="bg-white p-6 rounded-[32px] border border-slate-200 shadow-xl">
-            <h3 className="text-[10px] font-black uppercase text-slate-800 tracking-widest mb-4 border-b pb-2">Bảng Vàng</h3>
-            <div className="space-y-2">
-              {leaderboard.map((e, i) => (
-                <div key={i} className="flex justify-between items-center p-3 bg-slate-50 rounded-xl border">
-                  <span className="text-[10px] font-black text-slate-700 truncate w-24">{i+1}. {e.playerName}</span>
-                  <span className="text-[10px] font-black text-indigo-600">{e.score}</span>
+
+          <div className="relative z-10 grid grid-cols-2 gap-4">
+            <GameModeBtn title="QUIZ" icon="🏆" onClick={() => startWithMode('quiz')} color="bg-indigo-600" desc="Thử thách tri thức" />
+            <GameModeBtn title="SCRAMBLE" icon="🧩" onClick={() => startWithMode('scramble')} color="bg-emerald-600" desc="Giải mã từ vựng" />
+            <GameModeBtn title="BLITZ" icon="⚡" onClick={() => startWithMode('blitz')} color="bg-amber-500" desc="Phản xạ tia chớp" />
+            <GameModeBtn title="SURVIVAL" icon="❤️" onClick={() => startWithMode('survival')} color="bg-rose-600" desc="Đấu trường sinh tồn" />
+          </div>
+
+          <div className="relative z-10 mt-8 pt-5 border-t border-slate-100">
+            <h4 className="text-[8px] font-black text-slate-400 uppercase tracking-[3px] mb-3 flex items-center gap-2">
+               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+               Bảng Vàng Danh Dự
+            </h4>
+            <div className="grid grid-cols-2 gap-2">
+              {leaderboard.length > 0 ? leaderboard.slice(0, 4).map((e, i) => (
+                <div key={i} className="flex justify-between items-center p-2.5 bg-slate-50 rounded-xl border border-slate-100 hover:bg-white hover:shadow-sm transition-all">
+                  <span className="text-[9px] font-bold text-slate-600 truncate">{e.playerName}</span>
+                  <span className="text-[9px] font-black text-indigo-600">{e.score}</span>
                 </div>
-              ))}
+              )) : <p className="text-[8px] italic text-slate-300">Chưa có dữ liệu thi đấu</p>}
             </div>
           </div>
         </div>
@@ -125,81 +158,80 @@ const GameCenter: React.FC<GameCenterProps> = ({ questions, examTitle }) => {
   }
 
   if (gameState === 'playing') {
-    const q = gameQuestions[currentIdx];
     return (
-      <div className="h-full bg-white flex flex-col p-4 md:p-10 animate-content relative">
-        {feedback && (
-          <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/90 backdrop-blur-sm p-10">
-            <div className={`text-center p-8 rounded-[40px] shadow-2xl border-4 ${feedback.correct ? 'border-emerald-500 text-emerald-600' : 'border-rose-500 text-rose-600'}`}>
-              <div className="text-4xl mb-2">{feedback.correct ? '✅' : '❌'}</div>
-              <h2 className="text-2xl font-black uppercase italic">{feedback.correct ? 'ĐÚNG!' : 'SAI!'}</h2>
-              <p className="text-sm font-bold opacity-80 mt-1">{feedback.msg}</p>
+      <>
+        {showExitConfirm && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md animate-in fade-in duration-300">
+            <div className="w-full max-w-sm bg-white rounded-[40px] shadow-2xl p-8 border-t-8 border-rose-500 animate-in zoom-in duration-200">
+              <div className="text-center space-y-4">
+                <div className="w-16 h-16 bg-rose-50 text-rose-500 rounded-3xl flex items-center justify-center mx-auto mb-2">
+                  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                </div>
+                <h3 className="text-xl font-black text-slate-800 uppercase tracking-tighter">DỪNG TRẬN ĐẤU?</h3>
+                <p className="text-sm font-medium text-slate-500 leading-relaxed">
+                  Mọi điểm số và tiến trình hiện tại sẽ không được lưu lại. Bạn có chắc chắn muốn rời đi?
+                </p>
+                <div className="grid grid-cols-2 gap-3 pt-4">
+                  <button 
+                    onClick={() => setShowExitConfirm(false)} 
+                    className="py-3.5 bg-slate-100 text-slate-600 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all active:scale-95"
+                  >
+                    Ở LẠI
+                  </button>
+                  <button 
+                    onClick={confirmExit} 
+                    className="py-3.5 bg-rose-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-rose-700 transition-all shadow-lg shadow-rose-200 active:scale-95"
+                  >
+                    RỜI ĐI
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         )}
-        <div className="max-w-3xl mx-auto w-full flex flex-col h-full">
-          <div className="flex justify-between items-center bg-slate-50 p-4 rounded-3xl border border-slate-200 mb-6">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-indigo-600 text-white rounded-xl flex items-center justify-center font-black text-lg">{currentIdx+1}</div>
-              <div>
-                <p className="text-xs font-black text-slate-800">{playerName}</p>
-                <div className="flex gap-1 mt-0.5">{Array.from({length:3}).map((_,i)=><div key={i} className={`w-2 h-2 rounded-full ${i<lives?'bg-rose-500':'bg-slate-200'}`}></div>)}</div>
-              </div>
-            </div>
-            <div className={`w-12 h-12 rounded-full border-4 flex items-center justify-center font-black text-lg ${timeLeft < 5 ? 'border-rose-500 text-rose-500' : 'border-indigo-600 text-indigo-600'}`}>{timeLeft}</div>
-            <div className="text-right">
-              <p className="text-[8px] font-black text-indigo-400 uppercase tracking-widest">Score</p>
-              <p className="text-xl font-black text-slate-800">{score}</p>
-            </div>
-          </div>
-          <div className="flex-1 flex flex-col items-center justify-center">
-            <div className="bg-white p-8 md:p-12 rounded-[40px] shadow-lg text-center w-full mb-8 border-b-8 border-slate-100">
-              <p className="text-lg md:text-2xl font-black text-slate-900 italic leading-snug">{selectedMode === 'scramble' ? `Từ khóa: ${q.hint}` : q.content}</p>
-              {selectedMode === 'scramble' && <div className="mt-6 flex flex-wrap justify-center gap-2">{q.scrambled.split('').map((c:string,i:number)=><div key={i} className="w-8 h-10 bg-slate-50 rounded-lg flex items-center justify-center text-xl font-black text-indigo-600 border shadow-sm uppercase">{c}</div>)}</div>}
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
-              {q.options?.map((o:string, i:number) => (
-                <button key={i} onClick={() => handleAnswer(o)} className="bg-white p-4 md:p-6 rounded-2xl border border-slate-200 hover:border-indigo-600 hover:bg-indigo-50 transition-all text-left flex items-center gap-4 group active:scale-95">
-                  <span className="w-8 h-8 bg-indigo-100 text-indigo-600 rounded-lg flex items-center justify-center font-black text-sm italic group-hover:bg-indigo-600 group-hover:text-white transition-colors">{String.fromCharCode(65+i)}</span>
-                  <span className="text-sm font-bold text-slate-700">{o}</span>
-                </button>
-              )) || (
-                <div className="w-full">
-                  <input autoFocus onKeyDown={e => e.key === 'Enter' && handleAnswer((e.target as HTMLInputElement).value)} className="w-full bg-slate-50 border-4 border-indigo-100 p-6 rounded-3xl text-2xl font-black text-center outline-none focus:border-indigo-600 transition-all uppercase placeholder:text-slate-200" placeholder="ĐÁP ÁN..." />
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
+        
+        {selectedMode === 'scramble' && <ScrambleMode questions={activeQuestions} playerName={playerName} onFinish={handleFinish} onBack={triggerExitConfirm} />}
+        {selectedMode === 'blitz' && <BlitzMode questions={activeQuestions} playerName={playerName} onFinish={handleFinish} onBack={triggerExitConfirm} />}
+        {selectedMode === 'survival' && <SurvivalMode questions={activeQuestions} playerName={playerName} onFinish={handleFinish} onBack={triggerExitConfirm} />}
+        {selectedMode === 'quiz' && <QuizMode questions={activeQuestions} playerName={playerName} onFinish={handleFinish} onBack={triggerExitConfirm} />}
+      </>
     );
   }
 
   return (
-    <div className="h-full bg-slate-50 flex flex-col items-center justify-center p-6">
-      <div className="bg-white p-10 md:p-20 rounded-[48px] shadow-2xl border border-slate-200 text-center space-y-6 animate-content max-w-lg w-full">
-        <div className="text-6xl">🏆</div>
-        <h1 className="text-4xl md:text-6xl font-black text-slate-900 tracking-tight uppercase italic">Kết quả</h1>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="bg-slate-50 p-6 rounded-3xl border">
-            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Score</p>
-            <p className="text-3xl font-black text-indigo-600">{score}</p>
+    <div className="h-full bg-slate-50 flex items-center justify-center p-4">
+      <div className="bg-white p-10 rounded-[48px] shadow-2xl text-center space-y-6 max-w-sm w-full border border-slate-100 relative overflow-hidden animate-in zoom-in duration-500">
+        <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-indigo-500 via-emerald-500 to-rose-500"></div>
+        <div className="text-6xl animate-bounce">🎊</div>
+        <h1 className="text-3xl font-black text-slate-900 italic tracking-tighter">TRẬN ĐẤU KẾT THÚC</h1>
+        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{playerName}</p>
+        
+        <div className="grid grid-cols-2 gap-3">
+          <div className="bg-slate-50 p-5 rounded-3xl border-b-2 border-slate-100">
+            <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest">TỔNG ĐIỂM</p>
+            <p className="text-2xl font-black text-indigo-600">{lastGameResult?.score || 0}</p>
           </div>
-          <div className="bg-slate-50 p-6 rounded-3xl border">
-            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Streak</p>
-            <p className="text-3xl font-black text-emerald-500">{streak}</p>
+          <div className="bg-slate-50 p-5 rounded-3xl border-b-2 border-slate-100">
+            <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest">CHUỖI</p>
+            <p className="text-2xl font-black text-emerald-500">{lastGameResult?.streak || 0}</p>
           </div>
         </div>
-        <button onClick={() => setGameState('lobby')} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-indigo-600 shadow-xl transition-all">TIẾP TỤC</button>
+        
+        <div className="flex flex-col gap-2">
+          <button onClick={() => setGameState('lobby')} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-600 transition-all shadow-xl shadow-slate-200">CHƠI TIẾP</button>
+          <button onClick={() => setGameState('selection')} className="w-full py-3 text-slate-400 font-black text-[8px] uppercase tracking-widest">CHỌN CHỦ ĐỀ KHÁC</button>
+        </div>
       </div>
     </div>
   );
 };
 
-const ModeBtn: React.FC<{ title: string, icon: string, mode: GameMode, onClick: (m: GameMode) => void, color: string }> = ({ title, icon, mode, onClick, color }) => (
-  <button onClick={() => onClick(mode)} className={`p-4 rounded-2xl text-white text-left transition-all flex flex-col gap-1 group shadow-md hover:scale-105 active:scale-95 ${color}`}>
-    <span className="text-2xl mb-1 block transition-transform group-hover:rotate-12">{icon}</span>
-    <h4 className="font-black uppercase text-[10px] tracking-tight">{title}</h4>
+const GameModeBtn: React.FC<{title: string, icon: string, onClick: () => void, color: string, desc: string}> = ({ title, icon, onClick, color, desc }) => (
+  <button onClick={onClick} className={`${color} p-5 rounded-2xl text-white text-left transition-all flex flex-col gap-1 group shadow-lg active:scale-95 border border-white/10 hover:shadow-xl`}>
+    <div className="bg-white/20 w-8 h-8 rounded-lg flex items-center justify-center text-lg mb-1">{icon}</div>
+    <h4 className="font-black uppercase text-[11px] tracking-tight">{title}</h4>
+    <p className="text-[8px] font-bold opacity-70 uppercase leading-none">{desc}</p>
   </button>
 );
+
 export default GameCenter;
