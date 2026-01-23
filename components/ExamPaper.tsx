@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { ExamPaper as ExamPaperType, QuestionType, Question } from '../types';
 import { regenerateSingleQuestion } from '../services/geminiService';
@@ -25,16 +24,27 @@ const ExamPaper: React.FC<Props> = ({ data, onUpdateQuestion }) => {
   };
 
   return (
-    <div className="a4-container font-times text-black bg-white shadow-2xl p-[15mm] min-h-[297mm] w-[210mm] relative overflow-hidden print:shadow-none print:p-[10mm] print:m-0 flex flex-col">
-      {/* Header chuẩn hành chính */}
-      <div className="flex justify-between items-start mb-6 text-[10pt] md:text-[11pt]">
-        <div className="text-center w-1/2">
-          <p className="font-bold uppercase leading-tight">{config.schoolName || "TRƯỜNG THCS & THPT ..."}</p>
-          <p className="font-bold border-b border-black w-24 mx-auto pb-0.5">{config.department || "TỔ CHUYÊN MÔN"}</p>
+    <div className="a4-container font-times text-black bg-white shadow-2xl p-[15mm] min-h-[297mm] w-[210mm] relative overflow-hidden print:overflow-visible print:block print:h-auto print:shadow-none print:p-[10mm] print:m-0 flex flex-col">
+      {/* Header chuẩn hành chính - Đã sửa lỗi xuống dòng & canh lề */}
+      <div className="flex justify-between items-start mb-6 relative z-10">
+        <div className="text-center">
+          {/* Tên trường & Tổ chuyên môn */}
+          <p className="font-bold uppercase text-[10pt] md:text-[11pt] whitespace-nowrap">
+            {config.schoolName || "TRƯỜNG THCS & THPT ..."}
+          </p>
+          <p className="font-bold border-b border-black inline-block px-1 pb-0.5 text-[10pt] md:text-[11pt]">
+            {config.department || "TỔ CHUYÊN MÔN"}
+          </p>
         </div>
-        <div className="text-center w-1/2">
-          <p className="font-bold uppercase leading-tight text-[9pt] md:text-[11pt]">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</p>
-          <p className="font-bold border-b border-black w-32 mx-auto pb-0.5">Độc lập - Tự do - Hạnh phúc</p>
+        
+        <div className="text-center">
+          {/* Quốc hiệu & Tiêu ngữ - Sử dụng whitespace-nowrap để chống rớt dòng */}
+          <p className="font-bold uppercase text-[10pt] md:text-[11pt] whitespace-nowrap">
+            CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM
+          </p>
+          <p className="font-bold border-b border-black inline-block px-1 pb-0.5 text-[11pt] md:text-[12pt] whitespace-nowrap">
+            Độc lập - Tự do - Hạnh phúc
+          </p>
         </div>
       </div>
 
@@ -76,7 +86,7 @@ const ExamPaper: React.FC<Props> = ({ data, onUpdateQuestion }) => {
                 {sectionQuestions.map((q) => {
                   const globalIdx = questions.indexOf(q);
                   return (
-                    <div key={q.id} className="group relative pl-1">
+                    <div key={q.id} className="group relative pl-1 break-inside-avoid">
                       <div className="flex items-start">
                         <span className="font-bold mr-1.5 whitespace-nowrap">Câu {globalIdx + 1}.</span>
                         <div className="flex-1">

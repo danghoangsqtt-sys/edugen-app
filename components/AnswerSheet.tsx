@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { ExamPaper as ExamPaperType } from '../types';
 
@@ -10,7 +9,7 @@ const AnswerSheet: React.FC<Props> = ({ data }) => {
   const { questions, config } = data;
 
   return (
-    <div className="a4-container font-times text-black bg-white shadow-2xl mx-auto p-[20mm] min-h-[297mm] page-break mt-10 print:mt-0 print:shadow-none flex flex-col">
+    <div className="a4-container font-times text-black bg-white shadow-2xl mx-auto p-[20mm] min-h-[297mm] page-break mt-10 print:mt-0 print:shadow-none print:block print:h-auto flex flex-col">
       <div className="text-center mb-10">
         <h1 className="text-[16pt] font-bold uppercase mb-1">ĐÁP ÁN VÀ HƯỚNG DẪN GIẢI CHI TIẾT</h1>
         <p className="text-[13pt] font-bold uppercase">{config.title} - MÔN: {config.subject}</p>

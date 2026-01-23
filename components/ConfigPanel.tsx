@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { ExamConfig, Difficulty, QuestionType, BloomLevel } from '../types';
 
@@ -97,6 +96,29 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ onGenerate, isGenerating }) =
       
       {/* Form Fields */}
       <div className="space-y-4">
+        {/* --- CẬP NHẬT MỚI: Thêm ô nhập Tên Trường & Tổ Chuyên Môn --- */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Tên trường / Đơn vị</label>
+            <input 
+              className="w-full bg-slate-50 border border-slate-200 p-2 rounded-xl text-[11px] font-bold outline-none focus:ring-2 focus:ring-indigo-100 transition-all placeholder:font-normal" 
+              value={config.schoolName || ''} 
+              onChange={e => setConfig({...config, schoolName: e.target.value})}
+              placeholder="VD: TRƯỜNG THPT NGUYỄN TRÃI"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Tổ / Bộ môn</label>
+            <input 
+              className="w-full bg-slate-50 border border-slate-200 p-2 rounded-xl text-[11px] font-bold outline-none focus:ring-2 focus:ring-indigo-100 transition-all placeholder:font-normal" 
+              value={config.department || ''} 
+              onChange={e => setConfig({...config, department: e.target.value})}
+              placeholder="VD: TỔ TOÁN - TIN"
+            />
+          </div>
+        </div>
+        {/* ------------------------------------------------------------- */}
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div className="space-y-1">
             <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Tiêu đề chính</label>

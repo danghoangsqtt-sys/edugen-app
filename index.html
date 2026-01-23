@@ -4,8 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <!-- Cập nhật CSP: Ưu tiên tài nguyên nội bộ, cho phép kết nối Gemini API, loại bỏ esm.sh -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com; connect-src 'self' https://generativelanguage.googleapis.com; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com;">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com; connect-src 'self' https://generativelanguage.googleapis.com https://api.dictionaryapi.dev https://api.datamuse.com; img-src 'self' data: https:; media-src 'self' https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com;">
     
     <title>EduGen Studio Professional</title>
     <script src="https://cdn.tailwindcss.com"></script>
@@ -15,8 +14,7 @@
         :root {
             --accent-primary: #4f46e5;
             --bg-main: #f8fafc;
-            --sidebar-width: 320px;
-            --rail-width: 80px;
+            --rail-width: 85px;
         }
         
         body {
@@ -25,7 +23,7 @@
             color: #1e293b;
             overflow: hidden;
             height: 100vh;
-            touch-action: manipulation;
+            margin: 0;
         }
 
         .desktop-window {
@@ -42,14 +40,12 @@
             align-items: center;
             padding: 0 0 0 16px;
             z-index: 100;
-            -webkit-app-region: drag;
             user-select: none;
         }
 
         .window-controls {
             display: flex;
             height: 100%;
-            -webkit-app-region: no-drag;
         }
 
         .control-btn {
@@ -63,42 +59,13 @@
             cursor: pointer;
         }
 
-        .control-btn:hover {
-            background-color: #f1f5f9;
-        }
-
-        .control-btn.close-btn:hover {
-            background-color: #ef4444;
-            color: white;
-        }
+        .control-btn:hover { background-color: #f1f5f9; }
+        .control-btn.close-btn:hover { background-color: #ef4444; color: white; }
 
         .app-body {
             flex: 1;
             display: flex;
             overflow: hidden;
-            flex-direction: row;
-        }
-
-        /* Responsive Navigation */
-        @media (max-width: 768px) {
-            .app-body { flex-direction: column-reverse; }
-            .nav-rail {
-                width: 100% !important;
-                height: 64px !important;
-                flex-direction: row !important;
-                border-right: none !important;
-                border-top: 1px solid #e2e8f0;
-                padding: 0 20px !important;
-                justify-content: space-around !important;
-            }
-            .rail-item { width: 44px !important; height: 44px !important; }
-            .sidebar-panel {
-                width: 100% !important;
-                height: 40vh;
-                border-right: none !important;
-                border-bottom: 1px solid #e2e8f0;
-            }
-            .title-bar { display: none; }
         }
 
         .nav-rail {
@@ -109,83 +76,53 @@
             flex-direction: column;
             align-items: center;
             padding: 24px 0;
-            gap: 12px;
-            transition: all 0.3s ease;
+            gap: 16px;
         }
 
         .rail-item {
-            width: 52px;
-            height: 52px;
-            border-radius: 16px;
+            width: 54px;
+            height: 54px;
+            border-radius: 18px;
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             color: #64748b;
         }
 
-        .rail-item:hover {
-            background: #f1f5f9;
-            color: var(--accent-primary);
-        }
-
+        .rail-item:hover { background: #f1f5f9; color: var(--accent-primary); }
         .rail-item.active {
             background: var(--accent-primary);
             color: white;
-            box-shadow: 0 8px 16px rgba(79, 70, 229, 0.2);
-        }
-
-        .sidebar-panel {
-            width: var(--sidebar-width);
-            background: #fff;
-            border-right: 1px solid #e2e8f0;
-            display: flex;
-            flex-direction: column;
-            transition: width 0.3s ease;
+            box-shadow: 0 10px 20px rgba(79, 70, 229, 0.25);
+            transform: translateY(-2px);
         }
 
         .main-workspace {
             flex: 1;
             background: var(--bg-main);
             overflow-y: auto;
-            display: flex;
-            flex-direction: column;
             position: relative;
         }
 
-        .a4-wrapper {
-            width: 100%;
-            display: flex;
-            justify-content: center;
-            padding: 20px;
-        }
+        .font-times { font-family: 'Times New Roman', serif; }
 
-        @media (max-width: 850px) {
-            .a4-container {
-                transform: scale(calc(100vw / 900));
-                transform-origin: top center;
-                margin-bottom: calc(-100% + 100vw);
-            }
-        }
-
-        .font-times {
-            font-family: 'Times New Roman', serif;
-        }
-
-        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
         
         @keyframes slideIn {
-            from { opacity: 0; transform: translateY(10px); }
+            from { opacity: 0; transform: translateY(15px); }
             to { opacity: 1; transform: translateY(0); }
         }
-        .animate-content { animation: slideIn 0.3s ease-out; }
+        .animate-content { animation: slideIn 0.4s cubic-bezier(0.23, 1, 0.32, 1); }
 
         @media print {
             .no-print { display: none !important; }
-            .main-workspace { background: white !important; overflow: visible !important; }
-            .a4-container { transform: none !important; box-shadow: none !important; margin: 0 !important; width: 100% !important; border: none !important; }
+            body { background: white !important; overflow: visible !important; height: auto !important; }
+            .desktop-window, .app-body, .main-workspace, #root { display: block !important; height: auto !important; }
+            .a4-wrapper { padding: 0 !important; }
+            .a4-container { box-shadow: none !important; border: none !important; width: 100% !important; margin: 0 !important; }
         }
     </style>
 <script type="importmap">

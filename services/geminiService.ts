@@ -18,11 +18,6 @@ export const generateExamContent = async (config: ExamConfig): Promise<Question[
   if (!apiKey) throw new Error("Chưa cấu hình API Key. Vui lòng vào phần Cài đặt.");
 
   const ai = new GoogleGenAI({ apiKey });
-  
-  /**
-   * SỬA LỖI QUOTA: Chuyển từ 'gemini-3-pro-preview' sang 'gemini-3-flash-preview'
-   * Model Flash có hạn mức miễn phí cao hơn và tốc độ phản hồi nhanh hơn.
-   */
   const modelName = 'gemini-3-flash-preview'; 
   
   const sectionsPrompt = config.sections.map(s => 
@@ -79,19 +74,11 @@ export const generateExamContent = async (config: ExamConfig): Promise<Question[
     return JSON.parse(textContent) as Question[];
   } catch (error: any) {
     console.error("Gemini API Error:", error);
-    
-    // Xử lý lỗi thân thiện với người dùng
     const errorMsg = error.message || "";
-    
-    if (errorMsg.includes("429") || errorMsg.includes("QUOTA_EXCEEDED") || errorMsg.includes("quota")) {
-      throw new Error("Tài khoản của bạn đã hết lượt dùng AI miễn phí trong hôm nay (hoặc model này bị hạn chế). Vui lòng thử lại sau vài phút hoặc đổi API Key khác.");
+    if (errorMsg.includes("429") || errorMsg.includes("QUOTA_EXCEEDED")) {
+      throw new Error("Tài khoản của bạn đã hết lượt dùng AI miễn phí. Vui lòng thử lại sau.");
     }
-    
-    if (errorMsg.includes("API_KEY_INVALID") || errorMsg.includes("not found")) {
-      throw new Error("API Key không hợp lệ. Vui lòng kiểm tra lại trong phần Cài đặt.");
-    }
-    
-    throw new Error("Lỗi AI: " + (errorMsg.length > 100 ? "Yêu cầu bị từ chối bởi máy chủ AI." : errorMsg));
+    throw new Error("Lỗi AI: " + errorMsg);
   }
 };
 
@@ -144,6 +131,118 @@ export const regenerateSingleQuestion = async (config: ExamConfig, oldQuestion: 
 
     return JSON.parse(textContent) as Question;
   } catch (error: any) {
-    throw new Error("Lỗi AI: " + (error.message?.includes("429") ? "Đã hết lượt dùng AI. Thử lại sau." : "Không thể đổi câu hỏi."));
+    throw new Error("Lỗi AI: Không thể đổi câu hỏi.");
+  }
+};
+
+// ==================================================================================
+// PHẦN CẬP NHẬT: HỖ TRỢ TỪ ĐIỂN, DỊCH THUẬT & PHÂN TÍCH NGỮ PHÁP
+// ==================================================================================
+
+export interface DictionaryResponse {
+  type: 'word' | 'phrase' | 'sentence' | 'not_found';
+  word?: string;
+  ipa?: string;
+  meanings?: { partOfSpeech: string; def: string; example: string; synonyms?: string[] }[];
+  translation?: string;
+  correction?: string;
+  grammarAnalysis?: { 
+    error: string; 
+    fix: string; 
+    explanation: string; 
+    rule: string 
+  }[];
+  structure?: string;
+  usageNotes?: string;
+}
+
+export const analyzeLanguage = async (text: string): Promise<DictionaryResponse> => {
+  const apiKey = getApiKey();
+  if (!apiKey) throw new Error("Chưa cấu hình API Key.");
+
+  const ai = new GoogleGenAI({ apiKey });
+  const modelName = 'gemini-3-flash-preview';
+
+  const prompt = `
+    Bạn là một chuyên gia ngôn ngữ học và gia sư Tiếng Anh cao cấp. Hãy phân tích nội dung sau: "${text}"
+    
+    YÊU CẦU XỬ LÝ THEO ĐỊNH DẠNG JSON:
+    1. Nếu nội dung là TỪ ĐƠN (VD: "Education", "Run"):
+       - Trả về type: "word"
+       - Cung cấp IPA chuẩn (phiên âm quốc tế).
+       - Meanings: [{ partOfSpeech, def, example, synonyms }]. Tối đa 4 nghĩa thông dụng.
+       - usageNotes: Lưu ý cách dùng hoặc các collocations đi kèm.
+
+    2. Nếu nội dung là CỤM TỪ / THÀNH NGỮ (VD: "Take a break", "Piece of cake"):
+       - Trả về type: "phrase"
+       - translation: Nghĩa tiếng Việt tương đương.
+       - structure: Phân tích thành phần cụm từ.
+       - meanings: Giải thích chi tiết và ví dụ.
+
+    3. Nếu là CÂU VĂN / ĐOẠN VĂN:
+       - Trả về type: "sentence"
+       - translation: Dịch thuật chuẩn xác, mượt mà.
+       - correction: Nếu câu có lỗi (ngữ pháp, từ vựng, văn phong), hãy sửa lại cho đúng. Nếu đúng rồi thì để trống.
+       - grammarAnalysis: Phân tích các điểm ngữ pháp quan trọng hoặc lỗi sai cụ thể.
+       - structure: Sơ đồ cấu trúc câu (VD: S + V + O).
+
+    4. Nếu nội dung vô nghĩa hoặc không xác định:
+       - Trả về type: "not_found".
+
+    TRẢ VỀ DUY NHẤT JSON.
+  `;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: modelName,
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            type: { type: Type.STRING, enum: ["word", "phrase", "sentence", "not_found"] },
+            word: { type: Type.STRING },
+            ipa: { type: Type.STRING },
+            meanings: { 
+              type: Type.ARRAY, 
+              items: { 
+                type: Type.OBJECT, 
+                properties: { 
+                  partOfSpeech: { type: Type.STRING }, 
+                  def: { type: Type.STRING }, 
+                  example: { type: Type.STRING },
+                  synonyms: { type: Type.ARRAY, items: { type: Type.STRING } }
+                } 
+              } 
+            },
+            translation: { type: Type.STRING },
+            correction: { type: Type.STRING },
+            grammarAnalysis: { 
+              type: Type.ARRAY, 
+              items: { 
+                type: Type.OBJECT, 
+                properties: { 
+                  error: { type: Type.STRING }, 
+                  fix: { type: Type.STRING }, 
+                  explanation: { type: Type.STRING }, 
+                  rule: { type: Type.STRING } 
+                } 
+              } 
+            },
+            structure: { type: Type.STRING },
+            usageNotes: { type: Type.STRING }
+          }
+        }
+      }
+    });
+
+    const textContent = response.text;
+    if (!textContent) throw new Error("AI không phản hồi.");
+    return JSON.parse(textContent) as DictionaryResponse;
+
+  } catch (error: any) {
+    console.error("Language Analysis Error:", error);
+    return { type: 'not_found' };
   }
 };
