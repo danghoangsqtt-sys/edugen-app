@@ -21,6 +21,16 @@ export enum QuestionType {
   WORD_ORDER = 'Sắp xếp câu'
 }
 
+export interface VocabularyItem {
+  id: string;
+  word: string;
+  pronunciation: string;
+  partOfSpeech: string;
+  meaning: string;
+  example?: string;
+  topic: string;
+}
+
 export interface Question {
   id: string;
   type: QuestionType;

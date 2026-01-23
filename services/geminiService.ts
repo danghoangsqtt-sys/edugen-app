@@ -1,48 +1,84 @@
 
-import { GoogleGenAI, Type } from "@google/genai";
-import { ExamConfig, Question, QuestionType, BloomLevel } from "../types";
+import { GoogleGenAI, Type, Modality } from "@google/genai";
+import { ExamConfig, Question, QuestionType, BloomLevel, VocabularyItem } from "../types";
 
-/**
- * Lấy API Key từ localStorage hoặc biến môi trường
- */
-const getApiKey = () => {
-  const savedKey = localStorage.getItem('edugen_api_key');
-  return savedKey || process.env.API_KEY || "";
+const getApiKey = (): string => {
+  const manualKey = localStorage.getItem('edugen_api_key');
+  return manualKey || process.env.API_KEY || '';
+};
+
+const cleanJsonResponse = (text: string): string => {
+  return text.replace(/```json/g, "").replace(/```/g, "").trim();
 };
 
 /**
- * Generates the full content for an exam paper based on the provided configuration.
+ * Sinh ảnh minh họa cho từ vựng (Sử dụng cho game Vision Linker)
  */
-export const generateExamContent = async (config: ExamConfig): Promise<Question[]> => {
+export const generateVocabImage = async (word: string, meaning: string): Promise<string> => {
   const apiKey = getApiKey();
-  if (!apiKey) throw new Error("Chưa cấu hình API Key. Vui lòng vào phần Cài đặt.");
-
-  const ai = new GoogleGenAI({ apiKey });
-  const modelName = 'gemini-3-flash-preview'; 
+  if (!apiKey) throw new Error("Cần API Key để sinh ảnh.");
   
-  const sectionsPrompt = config.sections.map(s => 
-    `- Dạng bài: ${s.type}, Số lượng: ${s.count} câu, Mức độ Bloom: ${s.bloomLevels.join(', ')}, Điểm/câu: ${s.pointsPerQuestion}`
-  ).join('\n');
+  const ai = new GoogleGenAI({ apiKey });
+  // Sử dụng gemini-2.5-flash-image cho tốc độ và chất lượng tốt
+  const prompt = `A clear, simple, and high-quality educational illustration for the vocabulary word: "${word}" (meaning: ${meaning}). Style: Flat design, bright colors, white background, no text inside.`;
+  
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash-image',
+      contents: { parts: [{ text: prompt }] },
+      config: {
+        imageConfig: { aspectRatio: "1:1" }
+      }
+    });
+
+    for (const part of response.candidates[0].content.parts) {
+      if (part.inlineData) {
+        return `data:image/png;base64,${part.inlineData.data}`;
+      }
+    }
+    throw new Error("Không tìm thấy dữ liệu ảnh.");
+  } catch (error) {
+    console.error("Image Gen Error:", error);
+    throw error;
+  }
+};
+
+/**
+ * Trích xuất từ vựng trực tiếp từ File (PDF hoặc Image)
+ */
+export const extractVocabularyFromFile = async (base64Data: string, mimeType: string, topic: string): Promise<VocabularyItem[]> => {
+  const apiKey = getApiKey();
+  if (!apiKey) throw new Error("Chưa cấu hình API Key trong phần Cài đặt.");
+  
+  const ai = new GoogleGenAI({ apiKey });
+  const model = 'gemini-3-flash-preview';
 
   const prompt = `
-    Bạn là một chuyên gia khảo thí Việt Nam hàng đầu. Hãy tạo một đề thi JSON dựa trên yêu cầu sau:
-    - Tiêu đề: ${config.title}
-    - Môn học/Chủ đề: ${config.subject} - ${config.topic}
-    - Độ khó tổng thể: ${config.difficulty}
-    - Yêu cầu riêng: "${config.customRequirement}"
-    - Ma trận nội dung:
-    ${sectionsPrompt}
-    
-    YÊU CẦU QUAN TRỌNG:
-    1. Nội dung Tiếng Anh phải chuẩn bản ngữ (nếu là môn Tiếng Anh), nội dung kiến thức phải chính xác 100%.
-    2. Format đề thi tuân thủ đúng chuẩn giáo dục Việt Nam.
-    3. Luôn trả về một mảng JSON các đối tượng câu hỏi.
-    4. KHÔNG giải thích gì thêm ngoài khối JSON.
+    Nhiệm vụ: Phân tích tài liệu đính kèm (bảng từ vựng sách giáo khoa).
+    Chủ đề: "${topic}"
+    Yêu cầu: Trích xuất danh sách từ vựng thành mảng JSON.
+    Mỗi đối tượng gồm: word, pronunciation (IPA), partOfSpeech, meaning (tiếng Việt), example (ngắn), topic.
   `;
 
   try {
     const response = await ai.models.generateContent({
-      model: modelName,
+      model: model,
+      contents: [{ parts: [{ text: prompt }, { inlineData: { data: base64Data, mimeType: mimeType } }] }],
+      config: { responseMimeType: "application/json" }
+    });
+    return JSON.parse(cleanJsonResponse(response.text)) as VocabularyItem[];
+  } catch (error: any) {
+    throw new Error(error?.message || "Lỗi AI không thể đọc file.");
+  }
+};
+
+export const generateExamContent = async (config: ExamConfig): Promise<Question[]> => {
+  const ai = new GoogleGenAI({ apiKey: getApiKey() });
+  const prompt = `Tạo đề thi tiếng Anh JSON cho chủ đề: ${config.topic}. Ma trận: ${JSON.stringify(config.sections)}`;
+  
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -52,197 +88,96 @@ export const generateExamContent = async (config: ExamConfig): Promise<Question[
             type: Type.OBJECT,
             properties: {
               id: { type: Type.STRING },
-              type: { type: Type.STRING, enum: Object.values(QuestionType) },
+              type: { type: Type.STRING },
               content: { type: Type.STRING },
               options: { type: Type.ARRAY, items: { type: Type.STRING } },
               matchingLeft: { type: Type.ARRAY, items: { type: Type.STRING } },
               matchingRight: { type: Type.ARRAY, items: { type: Type.STRING } },
               correctAnswer: { type: Type.STRING },
               explanation: { type: Type.STRING },
-              bloomLevel: { type: Type.STRING, enum: Object.values(BloomLevel) },
+              bloomLevel: { type: Type.STRING },
               points: { type: Type.NUMBER }
             },
-            required: ["id", "type", "content", "correctAnswer", "explanation", "bloomLevel"]
+            required: ["id", "content", "correctAnswer", "type", "bloomLevel"]
           }
         }
       }
     });
-
-    const textContent = response.text;
-    if (!textContent) throw new Error("AI không trả về nội dung.");
-
-    return JSON.parse(textContent) as Question[];
-  } catch (error: any) {
-    console.error("Gemini API Error:", error);
-    const errorMsg = error.message || "";
-    if (errorMsg.includes("429") || errorMsg.includes("QUOTA_EXCEEDED")) {
-      throw new Error("Tài khoản của bạn đã hết lượt dùng AI miễn phí. Vui lòng thử lại sau.");
-    }
-    throw new Error("Lỗi AI: " + errorMsg);
-  }
+    return JSON.parse(cleanJsonResponse(response.text)) as Question[];
+  } catch (error) { throw error; }
 };
 
 /**
- * Regenerates a single question based on the exam context.
+ * FIX: Thêm hàm regenerateSingleQuestion để cho phép giáo viên đổi câu hỏi bất kỳ
  */
 export const regenerateSingleQuestion = async (config: ExamConfig, oldQuestion: Question): Promise<Question> => {
   const apiKey = getApiKey();
   if (!apiKey) throw new Error("Chưa cấu hình API Key.");
-
+  
   const ai = new GoogleGenAI({ apiKey });
-  const modelName = 'gemini-3-flash-preview'; 
-
-  const prompt = `
-    Dựa trên bối cảnh đề thi: ${config.title} (${config.subject}).
-    Hãy tạo lại 01 câu hỏi mới thay thế cho câu cũ, giữ nguyên định dạng và mức độ khó:
-    - Dạng bài: ${oldQuestion.type}
+  const prompt = `Tạo một câu hỏi tiếng Anh mới thay thế cho câu hỏi cũ này: "${oldQuestion.content}".
+    Yêu cầu:
+    - Loại câu hỏi: ${oldQuestion.type}
     - Mức độ Bloom: ${oldQuestion.bloomLevel}
-    - Nội dung cũ: "${oldQuestion.content}"
-    Trả về duy nhất 1 đối tượng JSON.
-  `;
+    - Chủ đề chính: ${config.topic}
+    - Yêu cầu bổ sung: ${config.customRequirement}
+    Trả về một đối tượng JSON câu hỏi duy nhất.`;
 
   try {
     const response = await ai.models.generateContent({
-      model: modelName,
+      model: 'gemini-3-flash-preview',
       contents: prompt,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
           properties: {
-            id: { type: Type.STRING },
-            type: { type: Type.STRING, enum: Object.values(QuestionType) },
             content: { type: Type.STRING },
             options: { type: Type.ARRAY, items: { type: Type.STRING } },
             matchingLeft: { type: Type.ARRAY, items: { type: Type.STRING } },
             matchingRight: { type: Type.ARRAY, items: { type: Type.STRING } },
             correctAnswer: { type: Type.STRING },
             explanation: { type: Type.STRING },
-            bloomLevel: { type: Type.STRING, enum: Object.values(BloomLevel) },
+            bloomLevel: { type: Type.STRING },
             points: { type: Type.NUMBER }
           },
-          required: ["id", "type", "content", "correctAnswer", "explanation", "bloomLevel"]
+          required: ["content", "correctAnswer", "explanation"]
         }
       }
     });
 
-    const textContent = response.text;
-    if (!textContent) throw new Error("AI không trả về nội dung.");
-
-    return JSON.parse(textContent) as Question;
-  } catch (error: any) {
-    throw new Error("Lỗi AI: Không thể đổi câu hỏi.");
+    const result = JSON.parse(cleanJsonResponse(response.text));
+    return {
+      ...result,
+      id: oldQuestion.id,
+      type: oldQuestion.type,
+      bloomLevel: result.bloomLevel || oldQuestion.bloomLevel
+    };
+  } catch (error) {
+    console.error("Regenerate Question Error:", error);
+    throw error;
   }
 };
 
-// ==================================================================================
-// PHẦN CẬP NHẬT: HỖ TRỢ TỪ ĐIỂN, DỊCH THUẬT & PHÂN TÍCH NGỮ PHÁP
-// ==================================================================================
+export const analyzeLanguage = async (text: string): Promise<DictionaryResponse> => {
+  const ai = new GoogleGenAI({ apiKey: getApiKey() });
+  const prompt = `Phân tích từ/câu: "${text}"`;
+  const response = await ai.models.generateContent({
+    model: 'gemini-3-flash-preview',
+    contents: prompt,
+    config: { responseMimeType: "application/json" }
+  });
+  return JSON.parse(cleanJsonResponse(response.text)) as DictionaryResponse;
+};
 
 export interface DictionaryResponse {
   type: 'word' | 'phrase' | 'sentence' | 'not_found';
   word?: string;
   ipa?: string;
-  meanings?: { partOfSpeech: string; def: string; example: string; synonyms?: string[] }[];
+  meanings?: { partOfSpeech: string; def: string; example: string }[];
   translation?: string;
   correction?: string;
-  grammarAnalysis?: { 
-    error: string; 
-    fix: string; 
-    explanation: string; 
-    rule: string 
-  }[];
+  grammarAnalysis?: { error: string; fix: string; explanation: string }[];
   structure?: string;
   usageNotes?: string;
 }
-
-export const analyzeLanguage = async (text: string): Promise<DictionaryResponse> => {
-  const apiKey = getApiKey();
-  if (!apiKey) throw new Error("Chưa cấu hình API Key.");
-
-  const ai = new GoogleGenAI({ apiKey });
-  const modelName = 'gemini-3-flash-preview';
-
-  const prompt = `
-    Bạn là một chuyên gia ngôn ngữ học và gia sư Tiếng Anh cao cấp. Hãy phân tích nội dung sau: "${text}"
-    
-    YÊU CẦU XỬ LÝ THEO ĐỊNH DẠNG JSON:
-    1. Nếu nội dung là TỪ ĐƠN (VD: "Education", "Run"):
-       - Trả về type: "word"
-       - Cung cấp IPA chuẩn (phiên âm quốc tế).
-       - Meanings: [{ partOfSpeech, def, example, synonyms }]. Tối đa 4 nghĩa thông dụng.
-       - usageNotes: Lưu ý cách dùng hoặc các collocations đi kèm.
-
-    2. Nếu nội dung là CỤM TỪ / THÀNH NGỮ (VD: "Take a break", "Piece of cake"):
-       - Trả về type: "phrase"
-       - translation: Nghĩa tiếng Việt tương đương.
-       - structure: Phân tích thành phần cụm từ.
-       - meanings: Giải thích chi tiết và ví dụ.
-
-    3. Nếu là CÂU VĂN / ĐOẠN VĂN:
-       - Trả về type: "sentence"
-       - translation: Dịch thuật chuẩn xác, mượt mà.
-       - correction: Nếu câu có lỗi (ngữ pháp, từ vựng, văn phong), hãy sửa lại cho đúng. Nếu đúng rồi thì để trống.
-       - grammarAnalysis: Phân tích các điểm ngữ pháp quan trọng hoặc lỗi sai cụ thể.
-       - structure: Sơ đồ cấu trúc câu (VD: S + V + O).
-
-    4. Nếu nội dung vô nghĩa hoặc không xác định:
-       - Trả về type: "not_found".
-
-    TRẢ VỀ DUY NHẤT JSON.
-  `;
-
-  try {
-    const response = await ai.models.generateContent({
-      model: modelName,
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            type: { type: Type.STRING, enum: ["word", "phrase", "sentence", "not_found"] },
-            word: { type: Type.STRING },
-            ipa: { type: Type.STRING },
-            meanings: { 
-              type: Type.ARRAY, 
-              items: { 
-                type: Type.OBJECT, 
-                properties: { 
-                  partOfSpeech: { type: Type.STRING }, 
-                  def: { type: Type.STRING }, 
-                  example: { type: Type.STRING },
-                  synonyms: { type: Type.ARRAY, items: { type: Type.STRING } }
-                } 
-              } 
-            },
-            translation: { type: Type.STRING },
-            correction: { type: Type.STRING },
-            grammarAnalysis: { 
-              type: Type.ARRAY, 
-              items: { 
-                type: Type.OBJECT, 
-                properties: { 
-                  error: { type: Type.STRING }, 
-                  fix: { type: Type.STRING }, 
-                  explanation: { type: Type.STRING }, 
-                  rule: { type: Type.STRING } 
-                } 
-              } 
-            },
-            structure: { type: Type.STRING },
-            usageNotes: { type: Type.STRING }
-          }
-        }
-      }
-    });
-
-    const textContent = response.text;
-    if (!textContent) throw new Error("AI không phản hồi.");
-    return JSON.parse(textContent) as DictionaryResponse;
-
-  } catch (error: any) {
-    console.error("Language Analysis Error:", error);
-    return { type: 'not_found' };
-  }
-};
