@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Question, LeaderboardEntry, ExamPaper } from '../types';
+import { storage, STORAGE_KEYS } from '../services/storageAdapter';
 import QuizMode from './QuizMode';
 import ScrambleMode from './ScrambleMode';
 import BlitzMode from './BlitzMode';
@@ -34,23 +35,26 @@ const GameCenter: React.FC<GameCenterProps> = ({ initialQuestions, initialExamTi
   }, [initialQuestions, initialExamTitle]);
 
   useEffect(() => {
-    const savedLB = localStorage.getItem('edugen_leaderboard');
-    if (savedLB) setLeaderboard(JSON.parse(savedLB));
-    const savedSettings = localStorage.getItem('edugen_settings');
-    if (savedSettings) {
-      try {
-        const s = JSON.parse(savedSettings);
-        if (s.teacherName) setPlayerName(s.teacherName);
-      } catch (e) {}
-    }
+    // Load Leaderboard Async
+    const loadData = async () => {
+        const savedLB = await storage.get<LeaderboardEntry[]>(STORAGE_KEYS.LEADERBOARD, []);
+        setLeaderboard(savedLB);
+
+        const savedSettings = await storage.get(STORAGE_KEYS.SETTINGS, { teacherName: '' });
+        if (savedSettings.teacherName) setPlayerName(savedSettings.teacherName);
+    };
+    loadData();
   }, []);
 
-  const handleFinish = (score: number, streak: number) => {
+  const handleFinish = async (score: number, streak: number) => {
     setLastGameResult({ score: Math.round(score), streak });
     const entry: LeaderboardEntry = { playerName, score: Math.round(score), time: new Date().toLocaleTimeString(), topic: activeTitle };
     const newLB = [entry, ...leaderboard].sort((a, b) => b.score - a.score).slice(0, 10);
     setLeaderboard(newLB);
-    localStorage.setItem('edugen_leaderboard', JSON.stringify(newLB));
+    
+    // Save Leaderboard Async
+    await storage.set(STORAGE_KEYS.LEADERBOARD, newLB);
+    
     setGameState('result');
   };
 

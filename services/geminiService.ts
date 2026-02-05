@@ -1,9 +1,11 @@
 
 import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { ExamConfig, Question, QuestionType, BloomLevel, VocabularyItem } from "../types";
+import { storage, STORAGE_KEYS } from "./storageAdapter";
 
-const getApiKey = (): string => {
-  const manualKey = localStorage.getItem('edugen_api_key');
+// Vì getApiKey giờ là async, các hàm gọi nó cũng phải xử lý async key
+const getApiKey = async (): Promise<string> => {
+  const manualKey = await storage.get<string>(STORAGE_KEYS.API_KEY, '');
   return manualKey || process.env.API_KEY || '';
 };
 
@@ -15,7 +17,7 @@ const cleanJsonResponse = (text: string): string => {
  * Sinh ảnh minh họa cho từ vựng (Sử dụng cho game Vision Linker)
  */
 export const generateVocabImage = async (word: string, meaning: string): Promise<string> => {
-  const apiKey = getApiKey();
+  const apiKey = await getApiKey();
   if (!apiKey) throw new Error("Cần API Key để sinh ảnh.");
   
   const ai = new GoogleGenAI({ apiKey });
@@ -47,17 +49,38 @@ export const generateVocabImage = async (word: string, meaning: string): Promise
  * Trích xuất từ vựng trực tiếp từ File (PDF hoặc Image)
  */
 export const extractVocabularyFromFile = async (base64Data: string, mimeType: string, topic: string): Promise<VocabularyItem[]> => {
-  const apiKey = getApiKey();
+  const apiKey = await getApiKey();
   if (!apiKey) throw new Error("Chưa cấu hình API Key trong phần Cài đặt.");
   
   const ai = new GoogleGenAI({ apiKey });
-  const model = 'gemini-3-flash-preview';
+  const model = 'gemini-3-flash-preview'; // Dùng bản 3.0 Pro/Flash để đọc ảnh/PDF tốt hơn
 
   const prompt = `
-    Nhiệm vụ: Phân tích tài liệu đính kèm (bảng từ vựng sách giáo khoa).
-    Chủ đề: "${topic}"
-    Yêu cầu: Trích xuất danh sách từ vựng thành mảng JSON.
-    Mỗi đối tượng gồm: word, pronunciation (IPA), partOfSpeech, meaning (tiếng Việt), example (ngắn), topic.
+    Đóng vai trò là một chuyên gia ngôn ngữ học và số hóa tài liệu.
+    Nhiệm vụ: Phân tích hình ảnh/tài liệu đính kèm để trích xuất danh sách từ vựng tiếng Anh.
+    Chủ đề gán cho các từ này là: "${topic}".
+    
+    Yêu cầu xử lý:
+    1. Tìm tất cả các từ vựng tiếng Anh có trong tài liệu.
+    2. Nếu tài liệu có cột phiên âm (IPA), hãy lấy chính xác. Nếu không, hãy tự động tạo IPA chuẩn Mỹ.
+    3. Nếu tài liệu có nghĩa tiếng Việt, hãy lấy nó. Nếu không, hãy dịch nghĩa phù hợp với ngữ cảnh phổ thông.
+    4. Xác định từ loại (n., v., adj., adv., v.v.).
+    5. Tạo một câu ví dụ ngắn gọn (example) chứa từ đó (nếu trong ảnh không có).
+    6. Bỏ qua các tiêu đề, số trang, hoặc rác. Chỉ lấy từ vựng.
+
+    Output format: JSON Array only.
+    Schema:
+    [
+      {
+        "id": "tạo_id_ngẫu_nhiên",
+        "word": "từ_gốc",
+        "pronunciation": "/ipa/",
+        "partOfSpeech": "từ_loại",
+        "meaning": "nghĩa_tiếng_việt",
+        "example": "Câu ví dụ.",
+        "topic": "${topic}"
+      }
+    ]
   `;
 
   try {
@@ -66,14 +89,25 @@ export const extractVocabularyFromFile = async (base64Data: string, mimeType: st
       contents: [{ parts: [{ text: prompt }, { inlineData: { data: base64Data, mimeType: mimeType } }] }],
       config: { responseMimeType: "application/json" }
     });
-    return JSON.parse(cleanJsonResponse(response.text)) as VocabularyItem[];
+    
+    const parsedData = JSON.parse(cleanJsonResponse(response.text));
+    
+    // Validate và chuẩn hóa dữ liệu trả về
+    return parsedData.map((item: any) => ({
+      ...item,
+      id: `vocab-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      topic: topic
+    })) as VocabularyItem[];
+
   } catch (error: any) {
+    console.error("Extract Error:", error);
     throw new Error(error?.message || "Lỗi AI không thể đọc file.");
   }
 };
 
 export const generateExamContent = async (config: ExamConfig): Promise<Question[]> => {
-  const ai = new GoogleGenAI({ apiKey: getApiKey() });
+  const apiKey = await getApiKey();
+  const ai = new GoogleGenAI({ apiKey });
   const prompt = `Tạo đề thi tiếng Anh JSON cho chủ đề: ${config.topic}. Ma trận: ${JSON.stringify(config.sections)}`;
   
   try {
@@ -107,11 +141,8 @@ export const generateExamContent = async (config: ExamConfig): Promise<Question[
   } catch (error) { throw error; }
 };
 
-/**
- * FIX: Thêm hàm regenerateSingleQuestion để cho phép giáo viên đổi câu hỏi bất kỳ
- */
 export const regenerateSingleQuestion = async (config: ExamConfig, oldQuestion: Question): Promise<Question> => {
-  const apiKey = getApiKey();
+  const apiKey = await getApiKey();
   if (!apiKey) throw new Error("Chưa cấu hình API Key.");
   
   const ai = new GoogleGenAI({ apiKey });
@@ -160,7 +191,8 @@ export const regenerateSingleQuestion = async (config: ExamConfig, oldQuestion: 
 };
 
 export const analyzeLanguage = async (text: string): Promise<DictionaryResponse> => {
-  const ai = new GoogleGenAI({ apiKey: getApiKey() });
+  const apiKey = await getApiKey();
+  const ai = new GoogleGenAI({ apiKey });
   const prompt = `Phân tích từ/câu: "${text}"`;
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',

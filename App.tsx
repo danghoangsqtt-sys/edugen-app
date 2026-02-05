@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { ExamConfig, ExamPaper as ExamPaperType, Question } from './types';
 import { generateExamContent } from './services/geminiService';
 import { checkAppUpdate } from './services/updateService';
+import { storage, STORAGE_KEYS } from './services/storageAdapter'; // Sử dụng adapter mới
 import ConfigPanel from './components/ConfigPanel';
 import ExamPaper from './components/ExamPaper';
 import AnswerSheet from './components/AnswerSheet';
@@ -12,9 +13,10 @@ import LibraryPanel from './components/LibraryPanel';
 import ChatbotPanel from './components/ChatbotPanel';
 import DictionaryPanel from './components/DictionaryPanel';
 import VocabBankPanel from './components/VocabBankPanel';
+import SpeakingArena from './components/SpeakingArena';
 
 const App: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'create' | 'library' | 'game' | 'chatbot' | 'settings' | 'dictionary' | 'vocab'>('create');
+  const [activeTab, setActiveTab] = useState<'create' | 'library' | 'game' | 'chatbot' | 'settings' | 'dictionary' | 'vocab' | 'speaking'>('create');
   const [examList, setExamList] = useState<ExamPaperType[]>([]);
   const [currentExamIndex, setCurrentExamIndex] = useState<number>(-1);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -35,12 +37,12 @@ const App: React.FC = () => {
   };
 
   useEffect(() => {
-    const savedExams = localStorage.getItem('edugen_ultimate_db');
-    if (savedExams) {
-      try {
-        setExamList(JSON.parse(savedExams));
-      } catch (e) {}
-    }
+    // LOAD DỮ LIỆU TỪ Ổ CỨNG (ASYNC)
+    const loadData = async () => {
+      const savedExams = await storage.get<ExamPaperType[]>(STORAGE_KEYS.EXAMS, []);
+      setExamList(savedExams);
+    };
+    loadData();
 
     const checkUpdates = async () => {
       try {
@@ -64,7 +66,10 @@ const App: React.FC = () => {
       };
       const newList = [newExam, ...examList];
       setExamList(newList);
-      localStorage.setItem('edugen_ultimate_db', JSON.stringify(newList));
+      
+      // LƯU XUỐNG Ổ CỨNG
+      await storage.set(STORAGE_KEYS.EXAMS, newList);
+      
       setCurrentExamIndex(0);
       setActiveTab('library');
     } catch (err: any) {
@@ -74,7 +79,7 @@ const App: React.FC = () => {
     }
   };
 
-  const handleUpdateQuestion = (index: number, updated: Question) => {
+  const handleUpdateQuestion = async (index: number, updated: Question) => {
     if (currentExamIndex < 0) return;
     const updatedExamList = [...examList];
     const updatedExam = { ...updatedExamList[currentExamIndex] };
@@ -82,15 +87,19 @@ const App: React.FC = () => {
     updatedQuestions[index] = updated;
     updatedExam.questions = updatedQuestions;
     updatedExamList[currentExamIndex] = updatedExam;
+    
     setExamList(updatedExamList);
-    localStorage.setItem('edugen_ultimate_db', JSON.stringify(updatedExamList));
+    // LƯU XUỐNG Ổ CỨNG
+    await storage.set(STORAGE_KEYS.EXAMS, updatedExamList);
   };
 
-  const deleteExam = (id: string) => {
+  const deleteExam = async (id: string) => {
     if (!window.confirm("Xác nhận xóa đề thi?")) return;
     const newList = examList.filter(e => e.id !== id);
     setExamList(newList);
-    localStorage.setItem('edugen_ultimate_db', JSON.stringify(newList));
+    // LƯU XUỐNG Ổ CỨNG
+    await storage.set(STORAGE_KEYS.EXAMS, newList);
+    
     if (currentExam?.id === id) setCurrentExamIndex(-1);
   };
 
@@ -123,6 +132,7 @@ const App: React.FC = () => {
           <RailItem icon="library" active={activeTab === 'library'} onClick={() => { setActiveTab('library'); setCurrentExamIndex(-1); }} label="Thư viện" />
           <RailItem icon="vocab" active={activeTab === 'vocab'} onClick={() => setActiveTab('vocab')} label="Từ vựng" />
           <RailItem icon="dictionary" active={activeTab === 'dictionary'} onClick={() => setActiveTab('dictionary')} label="Từ điển" />
+          <RailItem icon="speaking" active={activeTab === 'speaking'} onClick={() => setActiveTab('speaking')} label="Speaking" />
           <RailItem icon="chatbot" active={activeTab === 'chatbot'} onClick={() => setActiveTab('chatbot')} label="Gia sư AI" />
           <RailItem icon="game" active={activeTab === 'game'} onClick={() => setActiveTab('game')} label="Arena" />
           
@@ -147,6 +157,7 @@ const App: React.FC = () => {
 
           {activeTab === 'library' && !currentExam && <LibraryPanel exams={examList} onSelect={(id) => setCurrentExamIndex(examList.findIndex(e => e.id === id))} onDelete={deleteExam} />}
           {activeTab === 'vocab' && <VocabBankPanel />}
+          {activeTab === 'speaking' && <div className="h-full animate-content"><SpeakingArena /></div>}
           {activeTab === 'dictionary' && <div className="h-full p-6 animate-content"><DictionaryPanel /></div>}
           {activeTab === 'chatbot' && <div className="h-full animate-content"><ChatbotPanel /></div>}
           {activeTab === 'game' && <div className="h-full animate-content"><GameCenter initialQuestions={currentExam?.questions || []} initialExamTitle={currentExam?.config.title || ""} examList={examList} /></div>}
@@ -194,6 +205,7 @@ const RailItem: React.FC<{ icon: string; active: boolean; onClick: () => void; l
       case 'plus': return <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 4v16m8-8H4" /></svg>;
       case 'library': return <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>;
       case 'vocab': return <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>;
+      case 'speaking': return <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>;
       case 'chatbot': return <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h.01M15 9h.01M8 12h8" /></svg>;
       case 'dictionary': return <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" /></svg>;
       case 'game': return <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>;

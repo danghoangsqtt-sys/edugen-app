@@ -1,6 +1,9 @@
+
 import React, { useState, useEffect } from 'react';
 import { Difficulty, AppUpdate } from '../types';
 import { CURRENT_VERSION, checkAppUpdate } from '../services/updateService';
+import { storage, STORAGE_KEYS } from '../services/storageAdapter';
+import DataTransferUI from './DataTransferUI';
 
 interface SystemSettings {
   teacherName: string;
@@ -26,29 +29,29 @@ const SettingsPanel: React.FC = () => {
   const [updateInfo, setUpdateInfo] = useState<AppUpdate | null>(null);
 
   useEffect(() => {
-    const savedSettings = localStorage.getItem('edugen_settings');
-    const savedApiKey = localStorage.getItem('edugen_api_key');
-    
-    if (savedSettings) {
-      try {
-        const parsed = JSON.parse(savedSettings);
-        setSettings(prev => ({
-          ...prev,
-          ...parsed,
-          apiKey: savedApiKey || '',
-        }));
-      } catch (e) {}
-    } else if (savedApiKey) {
-      setSettings(prev => ({ ...prev, apiKey: savedApiKey }));
-    }
+    // Load settings async
+    const loadSettings = async () => {
+      const savedSettings = await storage.get(STORAGE_KEYS.SETTINGS, {});
+      const savedApiKey = await storage.get<string>(STORAGE_KEYS.API_KEY, '');
+      
+      setSettings(prev => ({
+        ...prev,
+        ...savedSettings,
+        apiKey: savedApiKey || '',
+      }));
+    };
+    loadSettings();
   }, []);
 
-  const saveSettings = () => {
+  const saveSettings = async () => {
     const { apiKey, ...otherSettings } = settings;
-    localStorage.setItem('edugen_settings', JSON.stringify(otherSettings));
-    localStorage.setItem('edugen_api_key', apiKey);
     
-    setMessage('Hệ thống đã cập nhật thiết lập mới!');
+    // Lưu settings chung
+    await storage.set(STORAGE_KEYS.SETTINGS, otherSettings);
+    // Lưu API key riêng
+    await storage.set(STORAGE_KEYS.API_KEY, apiKey);
+    
+    setMessage('Hệ thống đã cập nhật thiết lập mới vào bộ nhớ an toàn!');
     setTimeout(() => setMessage(null), 3000);
   };
 
@@ -88,6 +91,10 @@ const SettingsPanel: React.FC = () => {
         )}
 
         <div className="grid grid-cols-1 gap-8">
+          
+          {/* Module Backup & Restore */}
+          <DataTransferUI />
+
           {/* AI Configuration Section */}
           <div className="bg-white p-8 rounded-[32px] border border-slate-200 shadow-sm space-y-6">
             <h2 className="text-[11px] font-black text-indigo-600 uppercase tracking-[4px] flex items-center gap-3">
@@ -108,7 +115,7 @@ const SettingsPanel: React.FC = () => {
                 </div>
               </div>
 
-              {/* --- PHẦN BỔ SUNG: HƯỚNG DẪN LẤY API KEY --- */}
+              {/* --- HƯỚNG DẪN LẤY API KEY --- */}
               <div className="mt-4 bg-indigo-50 border border-indigo-100 rounded-xl p-4">
                 <h3 className="text-[11px] font-black text-indigo-700 uppercase tracking-widest mb-2 flex items-center gap-2">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -132,8 +139,6 @@ const SettingsPanel: React.FC = () => {
                     <li>Nhấn <strong>LƯU CẤU HÌNH</strong> để hoàn tất.</li>
                 </ol>
               </div>
-               {/* --- KẾT THÚC PHẦN BỔ SUNG --- */}
-
             </div>
           </div>
 
@@ -192,7 +197,7 @@ const SettingsPanel: React.FC = () => {
             )}
           </div>
 
-          {/* New Optimized Information Section */}
+          {/* System Info Section */}
           <div className="bg-gradient-to-br from-indigo-50/50 via-white to-slate-50 p-10 rounded-[40px] border border-indigo-100/50 shadow-xl shadow-slate-100 relative overflow-hidden">
             <div className="absolute right-[-30px] bottom-[-30px] text-indigo-600/5 rotate-[-15deg]">
               <svg className="w-72 h-72" fill="currentColor" viewBox="0 0 24 24">
@@ -239,7 +244,7 @@ const SettingsPanel: React.FC = () => {
                   </div>
                   <div>
                     <p className="text-[8px] font-black uppercase tracking-widest text-slate-400">Core Engine</p>
-                    <p className="text-sm font-extrabold text-slate-800">DH-Engine v4.0 <span className="text-emerald-500 ml-1">●</span></p>
+                    <p className="text-sm font-extrabold text-slate-800">DH-Engine v4.1 <span className="text-emerald-500 ml-1">●</span></p>
                   </div>
                 </div>
 

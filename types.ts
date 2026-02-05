@@ -84,3 +84,30 @@ export interface AppUpdate {
   downloadUrl: string;
   hasUpdate: boolean;
 }
+
+// --- NEW TYPES FOR SPEAKING LAB ---
+export interface SpeakingQuestion {
+  id: string;
+  question: string;
+  sampleAnswer?: string; // Cho chế độ cơ bản & AI suggestion
+  topic?: string;       // Cho chế độ nâng cao
+  difficulty?: string;
+}
+
+export interface SpeakingFeedback {
+  score: number;
+  pronunciation: string; // Nhận xét phát âm
+  grammar: string;       // Nhận xét ngữ pháp
+  betterVersion: string; // Phiên bản tốt hơn
+  transcription: string; // Nội dung AI nghe được
+}
+
+export interface SpeakingExamConfig {
+  schoolName: string;
+  teacherName: string;
+  examName: string;
+  examDate: string;
+  studentName?: string;
+  className?: string;
+  duration: number; // minutes
+}

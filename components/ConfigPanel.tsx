@@ -1,5 +1,7 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { ExamConfig, Difficulty, QuestionType, BloomLevel } from '../types';
+import { storage, STORAGE_KEYS } from '../services/storageAdapter';
 
 interface ConfigPanelProps {
   onGenerate: (config: ExamConfig) => void;
@@ -25,20 +27,26 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({ onGenerate, isGenerating }) =
   });
 
   useEffect(() => {
-    const savedSettings = localStorage.getItem('edugen_settings');
-    if (savedSettings) {
-      try {
-        const s = JSON.parse(savedSettings);
-        setConfig(prev => ({
-          ...prev,
-          schoolName: s.schoolName || prev.schoolName,
-          teacherName: s.teacherName || prev.teacherName,
-          department: s.department || prev.department,
-          duration: s.defaultDuration || prev.duration,
-          difficulty: s.defaultDifficulty || prev.difficulty
-        }));
-      } catch (e) {}
-    }
+    // Load Settings Async
+    const loadSettings = async () => {
+      const s = await storage.get(STORAGE_KEYS.SETTINGS, {
+         schoolName: '',
+         teacherName: '',
+         department: '',
+         defaultDuration: 45,
+         defaultDifficulty: Difficulty.INTERMEDIATE
+      });
+
+      setConfig(prev => ({
+        ...prev,
+        schoolName: s.schoolName || prev.schoolName,
+        teacherName: s.teacherName || prev.teacherName,
+        department: s.department || prev.department,
+        duration: s.defaultDuration || prev.duration,
+        difficulty: s.defaultDifficulty || prev.difficulty
+      }));
+    };
+    loadSettings();
   }, []);
 
   const totalPoints = useMemo(() => {

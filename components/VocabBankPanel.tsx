@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { VocabularyItem } from '../types';
 import { extractVocabularyFromFile } from '../services/geminiService';
+import { vocabStorage } from '../services/localDataService';
 import VocabArena from './VocabArena';
 
 const VocabBankPanel: React.FC = () => {
@@ -10,12 +11,20 @@ const VocabBankPanel: React.FC = () => {
   const [isExtracting, setIsExtracting] = useState(false);
   const [showArena, setShowArena] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [loading, setLoading] = useState(true);
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const saved = localStorage.getItem('edugen_vocab_bank');
-    if (saved) setVocabList(JSON.parse(saved));
+    loadData();
   }, []);
+
+  const loadData = async () => {
+    setLoading(true);
+    const data = await vocabStorage.getAll();
+    setVocabList(data);
+    setLoading(false);
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -46,11 +55,13 @@ const VocabBankPanel: React.FC = () => {
       
       const updatedList = [...newItems, ...vocabList];
       setVocabList(updatedList);
-      localStorage.setItem('edugen_vocab_bank', JSON.stringify(updatedList));
+      
+      // Lưu vào ổ cứng
+      await vocabStorage.saveAll(updatedList);
       
       setSelectedFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
-      alert(`AI đã bóc tách thành công ${newItems.length} từ vựng từ tệp tin!`);
+      alert(`Đã trích xuất và lưu ${newItems.length} từ vựng vào ổ cứng!`);
     } catch (e) {
       console.error(e);
       alert("Lỗi trích xuất AI. Vui lòng kiểm tra lại tệp tin hoặc API Key.");
@@ -59,11 +70,11 @@ const VocabBankPanel: React.FC = () => {
     }
   };
 
-  const deleteItem = (id: string) => {
-    if (!window.confirm("Xóa từ vựng này?")) return;
+  const deleteItem = async (id: string) => {
+    if (!window.confirm("Xóa từ vựng này khỏi kho lưu trữ?")) return;
     const newList = vocabList.filter(v => v.id !== id);
     setVocabList(newList);
-    localStorage.setItem('edugen_vocab_bank', JSON.stringify(newList));
+    await vocabStorage.saveAll(newList);
   };
 
   const groupedVocab = vocabList.reduce((acc, item) => {
@@ -80,17 +91,23 @@ const VocabBankPanel: React.FC = () => {
       <div className="flex items-center justify-between shrink-0">
         <div>
           <h2 className="text-2xl font-black text-slate-800 tracking-tighter uppercase">Vocab <span className="text-indigo-600">Vault</span></h2>
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[4px]">Hệ thống bóc tách học liệu AI</p>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[4px]">Hệ thống bóc tách học liệu AI & Lưu trữ cục bộ</p>
         </div>
         
-        <button 
-          disabled={vocabList.length < 5}
-          onClick={() => setShowArena(true)}
-          className="bg-indigo-600 text-white px-8 py-3.5 rounded-[22px] font-black text-[11px] uppercase tracking-widest flex items-center gap-2 hover:bg-slate-900 transition-all shadow-xl shadow-indigo-100 disabled:opacity-50 disabled:grayscale"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-          Luyện tập ngay
-        </button>
+        <div className="flex gap-3">
+           <div className="bg-slate-100 px-3 py-1 rounded-lg flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span className="text-[9px] font-bold text-slate-500 uppercase">Local Storage Active</span>
+           </div>
+           <button 
+            disabled={vocabList.length < 5}
+            onClick={() => setShowArena(true)}
+            className="bg-indigo-600 text-white px-8 py-3.5 rounded-[22px] font-black text-[11px] uppercase tracking-widest flex items-center gap-2 hover:bg-slate-900 transition-all shadow-xl shadow-indigo-100 disabled:opacity-50 disabled:grayscale"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+            Luyện tập ngay
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 overflow-hidden">
@@ -103,7 +120,7 @@ const VocabBankPanel: React.FC = () => {
             </h3>
             
             <div className="space-y-2">
-              <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Tên chủ đề / Unit</label>
+              <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Tên chủ đề / Unit (Gắn thẻ để lọc)</label>
               <input 
                 className="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-100"
                 value={topic}
@@ -133,7 +150,7 @@ const VocabBankPanel: React.FC = () => {
               ) : (
                 <>
                   <svg className="w-10 h-10 text-slate-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 13h6m-3-3v6m-9 1V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" /></svg>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Nhấn để chọn<br/>PDF hoặc Ảnh</p>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Nhấn để chọn<br/>PDF hoặc Ảnh (Scan)</p>
                 </>
               )}
             </div>
@@ -146,9 +163,9 @@ const VocabBankPanel: React.FC = () => {
               {isExtracting ? (
                 <div className="flex items-center justify-center gap-2">
                   <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                  AI ĐANG "ĐỌC" FILE...
+                  AI ĐANG PHÂN TÍCH FILE...
                 </div>
-              ) : "TRÍCH XUẤT TỪ VỰNG"}
+              ) : "TRÍCH XUẤT & LƯU TRỮ"}
             </button>
           </div>
         </div>
@@ -159,30 +176,41 @@ const VocabBankPanel: React.FC = () => {
             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Dữ liệu từ vựng đã nạp ({vocabList.length})</span>
           </div>
           <div className="flex-1 overflow-y-auto p-6 custom-scrollbar space-y-8">
-            {(Object.entries(groupedVocab) as [string, VocabularyItem[]][]).map(([topicName, items]) => (
-              <div key={topicName} className="space-y-4">
-                <div className="flex items-center gap-4">
-                   <h4 className="text-xs font-black text-indigo-600 uppercase tracking-widest bg-indigo-50 px-4 py-1.5 rounded-full">{topicName}</h4>
-                   <div className="h-px flex-1 bg-slate-100"></div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {items.map(item => (
-                    <div key={item.id} className="group p-4 bg-slate-50 border border-slate-100 rounded-2xl hover:bg-white hover:shadow-lg transition-all relative">
-                      <button onClick={() => deleteItem(item.id)} className="absolute top-2 right-2 p-1 text-slate-300 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" /></svg>
-                      </button>
-                      <div className="flex items-baseline gap-2 mb-1">
-                        <span className="text-sm font-black text-slate-800">{item.word}</span>
-                        <span className="text-[10px] font-medium text-indigo-400 italic">{item.pronunciation}</span>
-                        <span className="text-[8px] font-black text-slate-300 uppercase">({item.partOfSpeech})</span>
+            {loading ? (
+               <div className="flex items-center justify-center h-full">
+                  <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+               </div>
+            ) : vocabList.length === 0 ? (
+               <div className="flex flex-col items-center justify-center h-full opacity-30">
+                  <svg className="w-16 h-16 text-slate-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" /></svg>
+                  <p className="text-[10px] font-black uppercase tracking-widest">Chưa có dữ liệu</p>
+               </div>
+            ) : (
+              (Object.entries(groupedVocab) as [string, VocabularyItem[]][]).map(([topicName, items]) => (
+                <div key={topicName} className="space-y-4">
+                  <div className="flex items-center gap-4">
+                     <h4 className="text-xs font-black text-indigo-600 uppercase tracking-widest bg-indigo-50 px-4 py-1.5 rounded-full">{topicName}</h4>
+                     <div className="h-px flex-1 bg-slate-100"></div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {items.map(item => (
+                      <div key={item.id} className="group p-4 bg-slate-50 border border-slate-100 rounded-2xl hover:bg-white hover:shadow-lg transition-all relative animate-in fade-in zoom-in duration-300">
+                        <button onClick={() => deleteItem(item.id)} className="absolute top-2 right-2 p-1 text-slate-300 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                        <div className="flex items-baseline gap-2 mb-1">
+                          <span className="text-sm font-black text-slate-800">{item.word}</span>
+                          <span className="text-[10px] font-medium text-indigo-400 italic">{item.pronunciation}</span>
+                          <span className="text-[8px] font-black text-slate-300 uppercase">({item.partOfSpeech})</span>
+                        </div>
+                        <p className="text-[12px] font-bold text-slate-600">{item.meaning}</p>
+                        {item.example && <p className="text-[10px] text-slate-400 italic mt-1 leading-snug">"{item.example}"</p>}
                       </div>
-                      <p className="text-[12px] font-bold text-slate-600">{item.meaning}</p>
-                      {item.example && <p className="text-[10px] text-slate-400 italic mt-1 leading-snug">"{item.example}"</p>}
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
       </div>
